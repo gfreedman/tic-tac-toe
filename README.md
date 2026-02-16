@@ -2,6 +2,8 @@
 
 A polished, browser-based Tic-Tac-Toe game built with vanilla HTML, CSS, and JavaScript. Features a dark neon theme, CSS-drawn animated marks, three AI difficulty levels, and full keyboard/screen-reader accessibility.
 
+**[Play it here](https://gfreedman.github.io/tic-tac-toe/)**
+
 ## Features
 
 - **Two game modes** — Player vs Player (local) and Player vs AI
