@@ -876,28 +876,69 @@ function hideOverlay()
   confettiContainer.replaceChildren();
 }
 
+/** @constant {number} Total confetti pieces per burst */
+const CONFETTI_COUNT = 80;
+
+/** @constant {number} Tiny sparkle particles per burst */
+const SPARKLE_COUNT = 30;
+
+/** @constant {string[]} Confetti palette */
+const CONFETTI_COLORS = ['#0ff', '#f0f', '#ff0', '#0f0', '#f60', '#fff', '#f0f8', '#0ff8'];
+
+/** @constant {string[]} Shape class names (excluding sparkle) */
+const CONFETTI_SHAPES = ['square', 'circle', 'sliver'];
+
 /**
- * Creates 40 randomly-styled confetti pieces inside the confetti
- * container.  Each piece has a randomised colour, size, horizontal
- * position, and fall duration.
+ * Spawns a celebratory burst of confetti and sparkle particles.
+ *
+ * Creates two layers:
+ *   1. CONFETTI_COUNT larger pieces (squares, circles, slivers)
+ *      with random sway, varied sizes, and staggered delays.
+ *   2. SPARKLE_COUNT tiny 2-4px sparkles with a shimmer animation
+ *      for the "pixie dust" effect.
  */
 function spawnConfetti()
 {
-  const colors = ['#0ff', '#f0f', '#ff0', '#0f0', '#f60', '#fff'];
-
-  for (let i = 0; i < 40; i++)
+  /* ---- Wave 1: main confetti pieces ---- */
+  for (let i = 0; i < CONFETTI_COUNT; i++)
   {
     const piece = document.createElement('div');
-    piece.className = 'confetti-piece';
+    const shape = CONFETTI_SHAPES[Math.floor(Math.random() * CONFETTI_SHAPES.length)];
+    piece.className = `confetti-piece ${shape}`;
+
+    const size = shape === 'sliver'
+      ? { w: 3 + Math.random() * 4, h: 8 + Math.random() * 14 }
+      : { w: 6 + Math.random() * 10, h: 6 + Math.random() * 10 };
 
     piece.style.left              = `${Math.random() * 100}%`;
-    piece.style.background        = colors[Math.floor(Math.random() * colors.length)];
-    piece.style.animationDuration = `${1 + Math.random() * 2}s`;
-    piece.style.animationDelay    = `${Math.random() * 0.5}s`;
-    piece.style.width             = `${6 + Math.random() * 8}px`;
-    piece.style.height            = `${6 + Math.random() * 8}px`;
+    piece.style.background        = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+    piece.style.width             = `${size.w}px`;
+    piece.style.height            = `${size.h}px`;
+    piece.style.setProperty('--sway', `${10 + Math.random() * 30}px`);
+    piece.style.animationDuration = `${1.5 + Math.random() * 2.5}s, ${0.6 + Math.random() * 1}s`;
+    piece.style.animationDelay    = `${Math.random() * 0.8}s, ${Math.random() * 0.5}s`;
 
     confettiContainer.appendChild(piece);
+  }
+
+  /* ---- Wave 2: sparkle / pixie dust ---- */
+  for (let i = 0; i < SPARKLE_COUNT; i++)
+  {
+    const spark = document.createElement('div');
+    spark.className = 'confetti-piece sparkle';
+
+    const sz = 2 + Math.random() * 3;
+
+    spark.style.left              = `${Math.random() * 100}%`;
+    spark.style.background        = '#fff';
+    spark.style.width             = `${sz}px`;
+    spark.style.height            = `${sz}px`;
+    spark.style.boxShadow         = `0 0 ${3 + Math.random() * 6}px #fff`;
+    spark.style.setProperty('--sway', `${5 + Math.random() * 20}px`);
+    spark.style.animationDuration = `${2 + Math.random() * 2}s, ${0.5 + Math.random() * 0.8}s, ${0.2 + Math.random() * 0.4}s`;
+    spark.style.animationDelay    = `${Math.random() * 1.2}s, ${Math.random() * 0.5}s, 0s`;
+
+    confettiContainer.appendChild(spark);
   }
 }
 

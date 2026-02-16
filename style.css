@@ -36,9 +36,9 @@
   --o-color: #f0f;
   --text: #e0e0e0;
   --text-dim: #888;
-  --cell-size: min(22vmin, 120px);
-  --cell-gap: min(1.5vmin, 8px);
-  --mark-thickness: min(0.8vmin, 4px);
+  --cell-size: min(26vmin, 150px);
+  --cell-gap: min(1.8vmin, 10px);
+  --mark-thickness: min(1vmin, 5px);
   --board-size: calc(var(--cell-size) * 3 + var(--cell-gap) * 2);
 }
 
@@ -780,15 +780,43 @@ body
   z-index: 99;
 }
 
+/* ---- Base confetti piece ---- */
+
 .confetti-piece
 {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  top: -10px;
-  border-radius: 2px;
-  animation: confetti-fall linear forwards;
+  top: -20px;
+  animation: confetti-fall linear forwards, confetti-sway ease-in-out infinite;
 }
+
+/* ---- Shape variants (applied via JS classes) ---- */
+
+.confetti-piece.square
+{
+  border-radius: 2px;
+}
+
+.confetti-piece.circle
+{
+  border-radius: 50%;
+}
+
+.confetti-piece.sliver
+{
+  border-radius: 1px;
+}
+
+/* ---- Sparkle particles — tiny with shimmer ---- */
+
+.confetti-piece.sparkle
+{
+  border-radius: 50%;
+  animation: confetti-fall linear forwards,
+             confetti-sway ease-in-out infinite,
+             confetti-shimmer 0.4s ease-in-out infinite alternate;
+}
+
+/* ---- Keyframes ---- */
 
 @keyframes confetti-fall
 {
@@ -797,11 +825,37 @@ body
     transform: translateY(0) rotate(0deg);
     opacity: 1;
   }
+  85%
+  {
+    opacity: 1;
+  }
   100%
   {
-    transform: translateY(100vh) rotate(720deg);
+    transform: translateY(105vh) rotate(900deg);
     opacity: 0;
   }
+}
+
+@keyframes confetti-sway
+{
+  0%, 100%
+  {
+    margin-left: 0;
+  }
+  25%
+  {
+    margin-left: var(--sway, 15px);
+  }
+  75%
+  {
+    margin-left: calc(var(--sway, 15px) * -1);
+  }
+}
+
+@keyframes confetti-shimmer
+{
+  from { opacity: 0.3; }
+  to   { opacity: 1; }
 }
 
 
@@ -855,8 +909,9 @@ body
 {
   :root
   {
-    --cell-size: 26vmin;
-    --cell-gap: 2vmin;
+    --cell-size: 28vmin;
+    --cell-gap: 2.5vmin;
+    --mark-thickness: 1.2vmin;
   }
 
   .side-buttons
@@ -880,7 +935,8 @@ body
 {
   :root
   {
-    --cell-size: 130px;
-    --cell-gap: 10px;
+    --cell-size: 160px;
+    --cell-gap: 12px;
+    --mark-thickness: 6px;
   }
 }
