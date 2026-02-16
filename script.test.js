@@ -10,7 +10,7 @@
  * ============================================================
  */
 
-const { describe, it, beforeEach } = require('node:test');
+const { describe, it, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 
 
@@ -65,6 +65,9 @@ global.document =
   createElement()    { return makeMockElement(); },
 };
 
+/* Bridge window ↔ global so window.AudioContext resolves in Node */
+global.window = global;
+
 /* Stub AudioContext (Web Audio API) */
 global.AudioContext = function ()
 {
@@ -82,12 +85,14 @@ global.AudioContext = function ()
     createGain()
     {
       return {
-        gain: { setValueAtTime() {}, linearRampToValueAtTime() {} },
+        gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} },
         connect() {},
       };
     },
     destination: {},
     currentTime: 0,
+    state: 'running',
+    resume() { return Promise.resolve(); },
   };
 };
 
@@ -104,6 +109,8 @@ const {
   minimax,
   checkResult,
   state,
+  playTone,
+  _resetAudioCtx,
 } = require('./script.js');
 
 
@@ -590,5 +597,141 @@ describe('Edge cases', () =>
     resetBoard();
     assert.equal(state.board.length, 9);
     assert.ok(state.board.every(c => c === ''));
+  });
+});
+
+
+/* =============================================================
+ *  Tests — Audio pipeline (playTone)
+ *  -------------------------------------------------------------
+ *  Uses a tracking mock to verify the exact Web Audio API call
+ *  sequence.  These tests exist to catch regressions like
+ *  replacing gain.gain.value with setValueAtTime (which silently
+ *  breaks the exponential ramp in real browsers).
+ * ============================================================= */
+
+describe('Audio pipeline', () =>
+{
+  const savedAudioContext = global.AudioContext;
+
+  /**
+   * Creates a tracking AudioContext mock.
+   * Every meaningful API call is recorded in `calls`.
+   */
+  function makeTrackingMock()
+  {
+    const calls = [];
+
+    const mockCtx =
+    {
+      createOscillator()
+      {
+        return {
+          type:      '',
+          frequency: { value: 0 },
+          connect()  { calls.push('osc.connect'); },
+          start()    { calls.push('osc.start'); },
+          stop(t)    { calls.push(['osc.stop', t]); },
+        };
+      },
+      createGain()
+      {
+        return {
+          gain:
+          {
+            _v: 0,
+            get value()  { return this._v; },
+            set value(v) { calls.push(['gain.value', v]); this._v = v; },
+            setValueAtTime(v, t)                { calls.push(['gain.setValueAtTime', v, t]); },
+            exponentialRampToValueAtTime(v, t)   { calls.push(['gain.exponentialRamp', v, t]); },
+          },
+          connect() { calls.push('gain.connect'); },
+        };
+      },
+      destination: {},
+      currentTime: 100,
+      state:       'running',
+      resume()     { calls.push('ctx.resume'); return Promise.resolve(); },
+    };
+
+    global.AudioContext = function () { return mockCtx; };
+    return { calls, mockCtx };
+  }
+
+  beforeEach(() =>
+  {
+    _resetAudioCtx();
+    state.muted = false;
+  });
+
+  afterEach(() =>
+  {
+    global.AudioContext = savedAudioContext;
+    _resetAudioCtx();
+  });
+
+  it('should set gain.value directly — NOT setValueAtTime', () =>
+  {
+    const { calls } = makeTrackingMock();
+    playTone(440, 0.12, 'sine', 0.15);
+
+    const setValue = calls.find(c => Array.isArray(c) && c[0] === 'gain.value');
+    assert.ok(setValue, 'gain.gain.value must be set directly');
+    assert.equal(setValue[1], 0.15);
+
+    const svat = calls.find(c => Array.isArray(c) && c[0] === 'gain.setValueAtTime');
+    assert.equal(svat, undefined, 'setValueAtTime must NOT be used — it breaks the exponential ramp');
+  });
+
+  it('should schedule exponentialRampToValueAtTime to fade out', () =>
+  {
+    const { calls } = makeTrackingMock();
+    playTone(440, 0.12, 'sine', 0.15);
+
+    const ramp = calls.find(c => Array.isArray(c) && c[0] === 'gain.exponentialRamp');
+    assert.ok(ramp, 'exponentialRampToValueAtTime must be scheduled');
+    assert.equal(ramp[1], 0.001, 'ramp target should be near-zero');
+    assert.equal(ramp[2], 100.12, 'ramp end time should be currentTime + duration');
+  });
+
+  it('should connect osc → gain → destination and start/stop', () =>
+  {
+    const { calls } = makeTrackingMock();
+    playTone(440, 0.12);
+
+    assert.ok(calls.includes('osc.connect'),  'oscillator must connect to gain');
+    assert.ok(calls.includes('gain.connect'),  'gain must connect to destination');
+    assert.ok(calls.includes('osc.start'),     'oscillator must start');
+
+    const stop = calls.find(c => Array.isArray(c) && c[0] === 'osc.stop');
+    assert.ok(stop, 'oscillator must stop');
+    assert.equal(stop[1], 100.12, 'stop time should be currentTime + duration');
+  });
+
+  it('should call resume() when AudioContext is suspended', () =>
+  {
+    const { calls, mockCtx } = makeTrackingMock();
+    mockCtx.state = 'suspended';
+
+    playTone(440, 0.12);
+    assert.ok(calls.includes('ctx.resume'), 'must call resume() on suspended context');
+  });
+
+  it('should NOT call resume() when AudioContext is already running', () =>
+  {
+    const { calls, mockCtx } = makeTrackingMock();
+    mockCtx.state = 'running';
+
+    playTone(440, 0.12);
+    assert.ok(!calls.includes('ctx.resume'), 'must not call resume() on running context');
+  });
+
+  it('should do nothing when muted', () =>
+  {
+    const { calls } = makeTrackingMock();
+    state.muted = true;
+
+    playTone(440, 0.12);
+    assert.equal(calls.length, 0, 'no audio API calls when muted');
   });
 });

@@ -194,6 +194,7 @@ function playTone(freq, duration, type = 'sine', volume = 0.15)
   try
   {
     const ctx  = getAudioCtx();
+    if (ctx.state === 'suspended') { ctx.resume(); }
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
 
@@ -207,9 +208,9 @@ function playTone(freq, duration, type = 'sine', volume = 0.15)
     osc.start();
     osc.stop(ctx.currentTime + duration);
   }
-  catch (_)
+  catch (e)
   {
-    /* Audio not available — fail silently */
+    console.error('playTone error:', e);
   }
 }
 
@@ -1270,6 +1271,44 @@ document.addEventListener('keydown', e =>
 
 
 /* =============================================================
+ *  Ambient Particles  (menu background decoration)
+ * ============================================================= */
+
+/**
+ * Spawns 25 tiny glowing dots inside the #ambient-particles
+ * container.  Each particle floats upward via pure CSS animation
+ * — zero ongoing JS cost after creation.
+ */
+function spawnAmbientParticles()
+{
+  const container = document.getElementById('ambient-particles');
+  if (!container) return;
+
+  const colors = ['#0ff', '#f0f', '#fff'];
+
+  for (let i = 0; i < 25; i++)
+  {
+    const dot = document.createElement('div');
+    dot.className = 'ambient-dot';
+
+    const size = 2 + Math.random() * 2;
+
+    dot.style.width  = `${size}px`;
+    dot.style.height = `${size}px`;
+    dot.style.left   = `${Math.random() * 100}%`;
+    dot.style.bottom = `${Math.random() * 100}%`;
+    dot.style.background = colors[Math.floor(Math.random() * colors.length)];
+    dot.style.animationDuration = `${8 + Math.random() * 12}s, ${2 + Math.random() * 3}s`;
+    dot.style.animationDelay    = `${Math.random() * 10}s, ${Math.random() * 2}s`;
+
+    container.appendChild(dot);
+  }
+}
+
+spawnAmbientParticles();
+
+
+/* =============================================================
  *  Module Exports (for unit testing)
  *  -------------------------------------------------------------
  *  In a browser context `typeof module` is 'undefined', so this
@@ -1288,5 +1327,7 @@ if (typeof module !== 'undefined' && module.exports)
     minimax,
     checkResult,
     state,
+    playTone,
+    _resetAudioCtx() { audioCtx = null; },
   };
 }

@@ -13,6 +13,7 @@
 
   <!-- Welcome / Mode Selection Screen -->
   <div id="screen-menu" class="screen active">
+    <div class="ambient-particles" id="ambient-particles"></div>
     <h1 class="title">Tic-Tac-Toe</h1>
     <div class="menu-buttons">
       <button class="btn btn-primary" id="btn-pvp">Player vs Player</button>
@@ -89,11 +90,12 @@
       </div>
     </div>
 
-    <!-- Mute Toggle -->
-    <button id="mute-toggle" aria-label="Toggle sound" title="Toggle sound">
-      <span id="mute-icon">&#x1f50a;</span>
-    </button>
   </div>
+
+  <!-- Mute Toggle -->
+  <button id="mute-toggle" aria-label="Toggle sound" title="Toggle sound">
+    <span id="mute-icon">&#x1f50a;</span>
+  </button>
 
   <!-- Game Over Overlay -->
   <div id="overlay" class="overlay" aria-hidden="true">
@@ -107,6 +109,6 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=3"></script>
 </body>
 </html>
