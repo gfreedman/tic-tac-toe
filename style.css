@@ -1,0 +1,887 @@
+/*
+ * ============================================================
+ *  Tic-Tac-Toe — Stylesheet
+ * ============================================================
+ *  Dark neon theme with CSS-drawn marks, animations, and
+ *  responsive layout.  Uses Allman brace style throughout.
+ *
+ *  Color Key
+ *  ---------
+ *  X  = cyan   (#0ff)
+ *  O  = magenta (#f0f)
+ *  BG = deep navy (#1a1a2e / #16213e)
+ * ============================================================
+ */
+
+
+/* =============================================================
+ *  Reset & Base
+ * ============================================================= */
+
+*,
+*::before,
+*::after
+{
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- Design tokens ---- */
+:root
+{
+  --bg: #1a1a2e;
+  --bg-light: #16213e;
+  --surface: #0f3460;
+  --x-color: #0ff;
+  --o-color: #f0f;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --cell-size: min(22vmin, 120px);
+  --cell-gap: min(1.5vmin, 8px);
+  --mark-thickness: min(0.8vmin, 4px);
+  --board-size: calc(var(--cell-size) * 3 + var(--cell-gap) * 2);
+}
+
+body
+{
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+
+/* =============================================================
+ *  Screens
+ *  -------------------------------------------------------------
+ *  Each "screen" (menu, difficulty, side-pick, game) is toggled
+ *  via the .active class.  Transitions use a simple opacity fade.
+ * ============================================================= */
+
+.screen
+{
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  width: 100%;
+  max-width: 500px;
+  padding: 1rem;
+}
+
+.screen.active
+{
+  display: flex;
+  opacity: 1;
+}
+
+.screen.fade-out
+{
+  opacity: 0;
+}
+
+
+/* =============================================================
+ *  Typography
+ * ============================================================= */
+
+/* Main title — gradient from cyan to magenta */
+.title
+{
+  font-size: clamp(2rem, 8vmin, 3.5rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, var(--x-color), var(--o-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Screen sub-headings */
+.subtitle
+{
+  font-size: clamp(1.3rem, 5vmin, 2rem);
+  font-weight: 600;
+  color: var(--text);
+}
+
+
+/* =============================================================
+ *  Buttons
+ *  -------------------------------------------------------------
+ *  Shared base (.btn) plus variants for primary, secondary,
+ *  back, and side-selection buttons.
+ * ============================================================= */
+
+.btn
+{
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 12px;
+  padding: 0.85rem 2rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
+  outline: none;
+}
+
+.btn:focus-visible
+{
+  outline: 2px solid var(--x-color);
+  outline-offset: 3px;
+}
+
+.btn:active
+{
+  transform: scale(0.96);
+}
+
+/* ---- Primary button (filled gradient) ---- */
+.btn-primary
+{
+  background: linear-gradient(135deg, #0f3460, #16213e);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 220px;
+}
+
+.btn-primary:hover
+{
+  background: linear-gradient(135deg, #16213e, #1a1a4e);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
+}
+
+/* ---- Secondary button (outline) ---- */
+.btn-secondary
+{
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-width: 220px;
+}
+
+.btn-secondary:hover
+{
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 15px rgba(255, 0, 255, 0.1);
+}
+
+/* ---- Back button (ghost) ---- */
+.btn-back
+{
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  padding: 0.5rem 1.5rem;
+}
+
+.btn-back:hover
+{
+  color: var(--text);
+}
+
+/* ---- Menu button stack ---- */
+.menu-buttons
+{
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+
+/* =============================================================
+ *  Side Selection  (Play as X / Play as O)
+ * ============================================================= */
+
+.side-buttons
+{
+  display: flex;
+  gap: 1.5rem;
+}
+
+.btn-side
+{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-light);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  padding: 1.5rem 2rem;
+  border-radius: 16px;
+  min-width: 140px;
+}
+
+.btn-side:hover
+{
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 25px rgba(0, 255, 255, 0.1);
+}
+
+/* ---- Static mark previews inside side-selection buttons ---- */
+
+.preview-mark
+{
+  width: 48px;
+  height: 48px;
+  position: relative;
+}
+
+/* X preview — two crossing lines */
+.preview-mark.x-mark::before,
+.preview-mark.x-mark::after
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 80%;
+  height: var(--mark-thickness);
+  background: var(--x-color);
+  border-radius: 2px;
+}
+
+.preview-mark.x-mark::before
+{
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.preview-mark.x-mark::after
+{
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* O preview — circle via border-radius */
+.preview-mark.o-mark::before
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 65%;
+  height: 65%;
+  transform: translate(-50%, -50%);
+  border: var(--mark-thickness) solid var(--o-color);
+  border-radius: 50%;
+}
+
+
+/* =============================================================
+ *  Scoreboard
+ * ============================================================= */
+
+#scoreboard
+{
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: var(--board-size);
+}
+
+.score-item
+{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.score-label
+{
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.score-value
+{
+  font-size: 1.5rem;
+  font-weight: 700;
+  transition: transform 0.3s ease;
+}
+
+/* Score bump animation — brief scale-up on increment */
+.score-value.bump
+{
+  animation: score-bump 0.4s ease;
+}
+
+@keyframes score-bump
+{
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* Utility color classes */
+.x-color
+{
+  color: var(--x-color);
+}
+
+.o-color
+{
+  color: var(--o-color);
+}
+
+
+/* =============================================================
+ *  Status Bar
+ *  -------------------------------------------------------------
+ *  Shows current turn, "AI is thinking...", or game result.
+ *  Color-coded glow via .x-turn / .o-turn classes.
+ * ============================================================= */
+
+#status
+{
+  font-size: clamp(1rem, 3.5vmin, 1.3rem);
+  font-weight: 600;
+  height: 2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s ease;
+}
+
+#status.x-turn #status-text
+{
+  color: var(--x-color);
+  text-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+}
+
+#status.o-turn #status-text
+{
+  color: var(--o-color);
+  text-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
+}
+
+#status.game-over #status-text
+{
+  color: var(--text);
+}
+
+/* ---- Animated "thinking" dots (appended via ::after) ---- */
+
+.thinking-dots::after
+{
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots
+{
+  0%  { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+
+
+/* =============================================================
+ *  Game Board
+ * ============================================================= */
+
+#board
+{
+  display: flex;
+  flex-direction: column;
+  gap: var(--cell-gap);
+  position: relative;           /* anchor for the win-line overlay */
+  animation: board-enter 0.5s ease;
+}
+
+/* Board entrance animation */
+@keyframes board-enter
+{
+  from
+  {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to
+  {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.board-row
+{
+  display: flex;
+  gap: var(--cell-gap);
+}
+
+
+/* =============================================================
+ *  Cells
+ *  -------------------------------------------------------------
+ *  Each cell is a square with rounded corners.  Empty cells show
+ *  a ghost preview of the current player's mark on hover.
+ * ============================================================= */
+
+.cell
+{
+  width: var(--cell-size);
+  height: var(--cell-size);
+  background: var(--bg-light);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- Focus rings (keyboard navigation) ---- */
+
+.cell:focus-visible
+{
+  box-shadow: 0 0 0 2px var(--x-color);
+}
+
+.cell.x-turn:focus-visible
+{
+  box-shadow: 0 0 0 2px var(--x-color);
+}
+
+.cell.o-turn:focus-visible
+{
+  box-shadow: 0 0 0 2px var(--o-color);
+}
+
+/* ---- Hover / focus background highlight on empty cells ---- */
+
+.cell:not(.taken):hover,
+.cell:not(.taken):focus-visible
+{
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ---- Ghost X preview (hover on empty cells, X's turn) ---- */
+
+.cell.x-hover:not(.taken)::before,
+.cell.x-hover:not(.taken)::after
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: var(--mark-thickness);
+  background: var(--x-color);
+  opacity: 0.2;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.cell.x-hover:not(.taken)::before
+{
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.cell.x-hover:not(.taken)::after
+{
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* ---- Ghost O preview (hover on empty cells, O's turn) ---- */
+
+.cell.o-hover:not(.taken)::before
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42%;
+  height: 42%;
+  transform: translate(-50%, -50%);
+  border: var(--mark-thickness) solid var(--o-color);
+  border-radius: 50%;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* ---- Occupied cells lose the pointer cursor ---- */
+
+.cell.taken
+{
+  cursor: default;
+}
+
+
+/* =============================================================
+ *  CSS-Drawn Marks  (X and O)
+ *  -------------------------------------------------------------
+ *  Marks are absolutely-positioned child divs (.mark) inside
+ *  each cell.  X is two pseudo-element lines; O is a circle.
+ *  Both animate in on placement.
+ * ============================================================= */
+
+.mark
+{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ---- X mark — two crossing lines with neon glow ---- */
+
+.mark.x::before,
+.mark.x::after
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 55%;
+  height: var(--mark-thickness);
+  background: var(--x-color);
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+/* First stroke grows from center */
+.mark.x::before
+{
+  --r: 45deg;
+  transform: translate(-50%, -50%) rotate(45deg) scaleX(0);
+  animation: x-draw 0.3s ease forwards;
+}
+
+/* Second stroke grows from center (slightly delayed) */
+.mark.x::after
+{
+  --r: -45deg;
+  transform: translate(-50%, -50%) rotate(-45deg) scaleX(0);
+  animation: x-draw 0.3s ease 0.1s forwards;
+}
+
+@keyframes x-draw
+{
+  to
+  {
+    transform: translate(-50%, -50%) rotate(var(--r, 45deg)) scaleX(1);
+  }
+}
+
+/* ---- O mark — circle that scales up ---- */
+
+.mark.o::before
+{
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 45%;
+  height: 45%;
+  transform: translate(-50%, -50%) scale(0);
+  border: var(--mark-thickness) solid var(--o-color);
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+  animation: o-draw 0.3s ease forwards;
+}
+
+@keyframes o-draw
+{
+  to
+  {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+
+/* =============================================================
+ *  Cell Animations
+ *  -------------------------------------------------------------
+ *  - pulse   : brief scale-up on mark placement
+ *  - winning : pulsing glow on the 3 winning cells
+ *  - shake   : horizontal shake on draw
+ * ============================================================= */
+
+/* ---- Placement pulse ---- */
+
+.cell.pulse
+{
+  animation: cell-pulse 0.3s ease;
+}
+
+@keyframes cell-pulse
+{
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* ---- Winning cell glow ---- */
+
+.cell.winning
+{
+  animation: win-glow 1s ease infinite alternate;
+}
+
+.cell.winning .mark.x::before,
+.cell.winning .mark.x::after
+{
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.8);
+}
+
+.cell.winning .mark.o::before
+{
+  box-shadow: 0 0 20px rgba(255, 0, 255, 0.8);
+}
+
+@keyframes win-glow
+{
+  from { background: rgba(255, 255, 255, 0.03); }
+  to   { background: rgba(255, 255, 255, 0.08); }
+}
+
+/* ---- Draw shake ---- */
+
+.cell.shake
+{
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake
+{
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(3px); }
+}
+
+
+/* =============================================================
+ *  Win Line
+ *  -------------------------------------------------------------
+ *  A gradient bar drawn across the three winning cells.
+ *  Positioned absolutely inside #board via JS-calculated coords.
+ * ============================================================= */
+
+.win-line
+{
+  position: absolute;
+  background: linear-gradient(90deg, var(--x-color), var(--o-color));
+  border-radius: 4px;
+  z-index: 10;
+  opacity: 0;
+  animation: line-draw 0.5s ease forwards;
+}
+
+@keyframes line-draw
+{
+  from { opacity: 0; }
+  to   { opacity: 0.7; }
+}
+
+
+/* =============================================================
+ *  Game Over Overlay
+ *  -------------------------------------------------------------
+ *  Semi-transparent full-screen overlay with result message,
+ *  action buttons, and optional confetti.
+ * ============================================================= */
+
+.overlay
+{
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 30, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.overlay.active
+{
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.overlay-content
+{
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  z-index: 101;
+}
+
+.overlay-message
+{
+  font-size: clamp(1.8rem, 7vmin, 3rem);
+  font-weight: 700;
+}
+
+/* X-wins message — cyan glow */
+.overlay-message.x-win
+{
+  color: var(--x-color);
+  text-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+}
+
+/* O-wins message — magenta glow */
+.overlay-message.o-win
+{
+  color: var(--o-color);
+  text-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+}
+
+/* Draw message — muted */
+.overlay-message.draw
+{
+  color: var(--text-dim);
+}
+
+.overlay-buttons
+{
+  display: flex;
+  gap: 1rem;
+}
+
+
+/* =============================================================
+ *  Confetti
+ *  -------------------------------------------------------------
+ *  Colourful squares that fall from the top of the viewport.
+ *  Each piece has a randomised position, size, colour, and
+ *  animation duration set via inline styles in JS.
+ * ============================================================= */
+
+#confetti-container
+{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 99;
+}
+
+.confetti-piece
+{
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -10px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards;
+}
+
+@keyframes confetti-fall
+{
+  0%
+  {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100%
+  {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+
+/* =============================================================
+ *  Mute Toggle
+ *  -------------------------------------------------------------
+ *  Fixed-position button in the bottom-right corner.
+ * ============================================================= */
+
+#mute-toggle
+{
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: border-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+#mute-toggle:hover
+{
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+#mute-toggle:focus-visible
+{
+  outline: 2px solid var(--x-color);
+  outline-offset: 2px;
+}
+
+
+/* =============================================================
+ *  Responsive Breakpoints
+ *  -------------------------------------------------------------
+ *  Small screens  (<=400px) : enlarge cells for tap targets,
+ *                              stack buttons vertically.
+ *  Large screens  (>=800px) : cap cell size for readability.
+ * ============================================================= */
+
+@media (max-width: 400px)
+{
+  :root
+  {
+    --cell-size: 26vmin;
+    --cell-gap: 2vmin;
+  }
+
+  .side-buttons
+  {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .overlay-buttons
+  {
+    flex-direction: column;
+  }
+
+  #scoreboard
+  {
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 800px)
+{
+  :root
+  {
+    --cell-size: 130px;
+    --cell-gap: 10px;
+  }
+}

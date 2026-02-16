@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tic-Tac-Toe</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Welcome / Mode Selection Screen -->
+  <div id="screen-menu" class="screen active">
+    <h1 class="title">Tic-Tac-Toe</h1>
+    <div class="menu-buttons">
+      <button class="btn btn-primary" id="btn-pvp">Player vs Player</button>
+      <button class="btn btn-primary" id="btn-pvai">Player vs AI</button>
+    </div>
+  </div>
+
+  <!-- Difficulty Selection Screen -->
+  <div id="screen-difficulty" class="screen">
+    <h2 class="subtitle">Choose Difficulty</h2>
+    <div class="menu-buttons">
+      <button class="btn btn-secondary" data-difficulty="easy">Easy</button>
+      <button class="btn btn-secondary" data-difficulty="medium">Medium</button>
+      <button class="btn btn-secondary" data-difficulty="hard">Hard (Unbeatable)</button>
+    </div>
+    <button class="btn btn-back" id="btn-back-difficulty">Back</button>
+  </div>
+
+  <!-- Choose Side Screen -->
+  <div id="screen-side" class="screen">
+    <h2 class="subtitle">Play as</h2>
+    <div class="side-buttons">
+      <button class="btn btn-side" data-side="X">
+        <div class="preview-mark x-mark" aria-hidden="true"></div>
+        <span>X (Go First)</span>
+      </button>
+      <button class="btn btn-side" data-side="O">
+        <div class="preview-mark o-mark" aria-hidden="true"></div>
+        <span>O (Go Second)</span>
+      </button>
+    </div>
+    <button class="btn btn-back" id="btn-back-side">Back</button>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="screen-game" class="screen">
+    <!-- Scoreboard -->
+    <div id="scoreboard" aria-label="Scoreboard">
+      <div class="score-item">
+        <span class="score-label" id="score-label-1">Player X</span>
+        <span class="score-value x-color" id="score-1">0</span>
+      </div>
+      <div class="score-item score-draw">
+        <span class="score-label">Draws</span>
+        <span class="score-value" id="score-draws">0</span>
+      </div>
+      <div class="score-item">
+        <span class="score-label" id="score-label-2">Player O</span>
+        <span class="score-value o-color" id="score-2">0</span>
+      </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div id="status" aria-live="polite" aria-atomic="true">
+      <span id="status-text">X's turn</span>
+    </div>
+
+    <!-- Game Board -->
+    <div id="board" role="grid" aria-label="Tic-Tac-Toe board">
+      <div class="board-row" role="row">
+        <div class="cell" role="gridcell" tabindex="0" data-index="0" aria-label="Row 1, Column 1, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="1" aria-label="Row 1, Column 2, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="2" aria-label="Row 1, Column 3, empty"></div>
+      </div>
+      <div class="board-row" role="row">
+        <div class="cell" role="gridcell" tabindex="0" data-index="3" aria-label="Row 2, Column 1, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="4" aria-label="Row 2, Column 2, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="5" aria-label="Row 2, Column 3, empty"></div>
+      </div>
+      <div class="board-row" role="row">
+        <div class="cell" role="gridcell" tabindex="0" data-index="6" aria-label="Row 3, Column 1, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="7" aria-label="Row 3, Column 2, empty"></div>
+        <div class="cell" role="gridcell" tabindex="0" data-index="8" aria-label="Row 3, Column 3, empty"></div>
+      </div>
+    </div>
+
+    <!-- Mute Toggle -->
+    <button id="mute-toggle" aria-label="Toggle sound" title="Toggle sound">
+      <span id="mute-icon">&#x1f50a;</span>
+    </button>
+  </div>
+
+  <!-- Game Over Overlay -->
+  <div id="overlay" class="overlay" aria-hidden="true">
+    <div id="confetti-container" aria-hidden="true"></div>
+    <div class="overlay-content">
+      <h2 id="overlay-message" class="overlay-message"></h2>
+      <div class="overlay-buttons">
+        <button class="btn btn-primary" id="btn-play-again">Play Again</button>
+        <button class="btn btn-secondary" id="btn-change-mode">Change Mode</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
