@@ -67,37 +67,8 @@ const muteIcon   = document.getElementById('mute-icon');
 
 
 /* =============================================================
- *  Game State
+ *  Constants
  * ============================================================= */
-
-/**
- * Central game state object.
- *
- * @type {Object}
- * @property {string|null}  mode          - 'pvp' | 'pvai'
- * @property {string|null}  difficulty    - 'easy' | 'medium' | 'hard'
- * @property {string}       playerMark    - Human's mark in AI mode ('X' | 'O')
- * @property {string}       aiMark        - AI's mark ('X' | 'O')
- * @property {string}       currentPlayer - Mark of the player whose turn it is
- * @property {string[]}     board         - 9-element array of '' | 'X' | 'O'
- * @property {boolean}      gameActive    - Whether the current round is in play
- * @property {Object}       scores        - { p1, draws, p2 } session tallies
- * @property {boolean}      muted         - Whether sound effects are silenced
- * @property {boolean}      aiThinking    - True while the AI delay timer is running
- */
-const state =
-{
-  mode:          null,
-  difficulty:    null,
-  playerMark:    'X',
-  aiMark:        'O',
-  currentPlayer: 'X',
-  board:         Array(9).fill(''),
-  gameActive:    false,
-  scores:        { p1: 0, draws: 0, p2: 0 },
-  muted:         false,
-  aiThinking:    false,
-};
 
 /**
  * All possible three-in-a-row winning patterns.
@@ -111,6 +82,80 @@ const WIN_PATTERNS =
   [0, 3, 6], [1, 4, 7], [2, 5, 8],   // columns
   [0, 4, 8], [2, 4, 6],               // diagonals
 ];
+
+/**
+ * Named audio frequency constants (Hz).
+ * @enum {number}
+ */
+const NOTE =
+{
+  C5:  523,
+  E5:  659,
+  G5:  784,
+  A4:  440,
+  X_PLACE: 600,
+  LOSE_HI: 400,
+  LOSE_LO: 300,
+};
+
+/** @constant {number} Screen fade-out duration in ms */
+const SCREEN_TRANSITION_MS = 300;
+
+/** @constant {number} Minimum AI thinking delay in ms */
+const AI_DELAY_MIN_MS = 400;
+
+/** @constant {number} Random jitter added to AI delay in ms */
+const AI_DELAY_JITTER_MS = 300;
+
+/** @constant {number} Delay before showing overlay after a win */
+const WIN_OVERLAY_DELAY_MS = 1200;
+
+/** @constant {number} Delay before showing overlay after a draw */
+const DRAW_OVERLAY_DELAY_MS = 1000;
+
+
+/* =============================================================
+ *  Game State
+ * ============================================================= */
+
+/**
+ * Central game state object.
+ *
+ * @type {Object}
+ * @property {string|null}  mode            - 'pvp' | 'pvai'
+ * @property {string|null}  difficulty      - 'easy' | 'medium' | 'hard'
+ * @property {string}       playerMark      - Human's mark in AI mode ('X' | 'O')
+ * @property {string}       aiMark          - AI's mark ('X' | 'O')
+ * @property {string}       currentPlayer   - Mark of the player whose turn it is
+ * @property {string[]}     board           - 9-element array of '' | 'X' | 'O'
+ * @property {boolean}      gameActive      - Whether the current round is in play
+ * @property {Object}       scores          - { p1, draws, p2 } session tallies
+ * @property {boolean}      muted           - Whether sound effects are silenced
+ * @property {boolean}      aiThinking      - True while the AI delay timer is running
+ * @property {number|null}  aiTimeoutId     - Timeout ID for pending AI move (for cleanup)
+ * @property {number|null}  overlayTimeoutId - Timeout ID for pending overlay show (for cleanup)
+ * @property {string|null}  currentScreen   - Key of the currently active screen
+ * @property {boolean}      isTransitioning - True while a screen fade is in progress
+ * @property {boolean}      inputLocked     - True during mark placement animation
+ */
+const state =
+{
+  mode:             null,
+  difficulty:       null,
+  playerMark:       'X',
+  aiMark:           'O',
+  currentPlayer:    'X',
+  board:            Array(9).fill(''),
+  gameActive:       false,
+  scores:           { p1: 0, draws: 0, p2: 0 },
+  muted:            false,
+  aiThinking:       false,
+  aiTimeoutId:      null,
+  overlayTimeoutId: null,
+  currentScreen:    'menu',
+  isTransitioning:  false,
+  inputLocked:      false,
+};
 
 
 /* =============================================================
@@ -175,17 +220,17 @@ function playTone(freq, duration, type = 'sine', volume = 0.15)
  */
 function playPlaceSound(mark)
 {
-  playTone(mark === 'X' ? 600 : 440, 0.12, 'triangle');
+  playTone(mark === 'X' ? NOTE.X_PLACE : NOTE.A4, 0.12, 'triangle');
 }
 
 /**
- * Plays a rising three-note victory jingle.
+ * Plays a rising three-note victory jingle (C5 → E5 → G5).
  */
 function playWinSound()
 {
-  playTone(523, 0.15, 'sine');
-  setTimeout(() => playTone(659, 0.15, 'sine'), 100);
-  setTimeout(() => playTone(784, 0.3,  'sine'), 200);
+  playTone(NOTE.C5, 0.15, 'sine');
+  setTimeout(() => playTone(NOTE.E5, 0.15, 'sine'), 100);
+  setTimeout(() => playTone(NOTE.G5, 0.3,  'sine'), 200);
 }
 
 /**
@@ -193,8 +238,8 @@ function playWinSound()
  */
 function playLoseSound()
 {
-  playTone(400, 0.2,  'sawtooth', 0.1);
-  setTimeout(() => playTone(300, 0.3, 'sawtooth', 0.1), 150);
+  playTone(NOTE.LOSE_HI, 0.2,  'sawtooth', 0.1);
+  setTimeout(() => playTone(NOTE.LOSE_LO, 0.3, 'sawtooth', 0.1), 150);
 }
 
 /**
@@ -202,27 +247,68 @@ function playLoseSound()
  */
 function playDrawSound()
 {
-  playTone(440, 0.15, 'square', 0.08);
-  setTimeout(() => playTone(440, 0.15, 'square', 0.08), 200);
+  playTone(NOTE.A4, 0.15, 'square', 0.08);
+  setTimeout(() => playTone(NOTE.A4, 0.15, 'square', 0.08), 200);
+}
+
+
+/* =============================================================
+ *  Timer Management
+ *  -------------------------------------------------------------
+ *  All game timeouts are tracked so they can be cancelled on
+ *  reset or mode-change, preventing stale callbacks.
+ * ============================================================= */
+
+/**
+ * Cancels any pending AI move and overlay timers.
+ * Resets the corresponding state flags.
+ */
+function clearPendingTimers()
+{
+  if (state.aiTimeoutId !== null)
+  {
+    clearTimeout(state.aiTimeoutId);
+    state.aiTimeoutId = null;
+  }
+
+  if (state.overlayTimeoutId !== null)
+  {
+    clearTimeout(state.overlayTimeoutId);
+    state.overlayTimeoutId = null;
+  }
+
+  state.aiThinking = false;
 }
 
 
 /* =============================================================
  *  Screen Navigation
+ *  -------------------------------------------------------------
+ *  Uses an isTransitioning lock to prevent race conditions when
+ *  buttons are clicked during the 300ms fade between screens.
  * ============================================================= */
 
 /**
  * Transitions from the currently active screen to another.
- * Uses a 300 ms opacity fade between screens.
+ * Ignores calls if a transition is already in progress.
  *
- * @param {string} screenId - Key into the `screens` map
+ * @param {string}   screenId  - Key into the `screens` map
+ * @param {Function} [onReady] - Optional callback fired after the new screen is visible
  */
-function showScreen(screenId)
+function showScreen(screenId, onReady)
 {
-  const current = document.querySelector('.screen.active');
+  if (state.isTransitioning) return;
+
+  const current = screens[state.currentScreen];
   const next    = screens[screenId];
 
-  if (current === next) return;
+  if (current === next)
+  {
+    if (onReady) onReady();
+    return;
+  }
+
+  state.isTransitioning = true;
 
   if (current)
   {
@@ -231,11 +317,17 @@ function showScreen(screenId)
     {
       current.classList.remove('active', 'fade-out');
       next.classList.add('active');
-    }, 300);
+      state.currentScreen    = screenId;
+      state.isTransitioning  = false;
+      if (onReady) onReady();
+    }, SCREEN_TRANSITION_MS);
   }
   else
   {
     next.classList.add('active');
+    state.currentScreen    = screenId;
+    state.isTransitioning  = false;
+    if (onReady) onReady();
   }
 }
 
@@ -257,8 +349,7 @@ document.getElementById('btn-pvp').addEventListener('click', () =>
   scoreEls.label2.textContent = 'Player O';
 
   updateScoreboard();
-  showScreen('game');
-  startGame();
+  showScreen('game', startGame);
 });
 
 document.getElementById('btn-pvai').addEventListener('click', () =>
@@ -292,8 +383,7 @@ document.querySelectorAll('[data-side]').forEach(btn =>
     scoreEls.label2.textContent = `AI (${state.aiMark})`;
 
     updateScoreboard();
-    showScreen('game');
-    startGame();
+    showScreen('game', startGame);
   });
 });
 
@@ -320,6 +410,7 @@ document.getElementById('btn-play-again').addEventListener('click', () =>
 document.getElementById('btn-change-mode').addEventListener('click', () =>
 {
   hideOverlay();
+  clearPendingTimers();
   showScreen('menu');
 });
 
@@ -342,18 +433,20 @@ muteToggle.addEventListener('click', () =>
  */
 function startGame()
 {
+  clearPendingTimers();
+
   state.board         = Array(9).fill('');
   state.currentPlayer = 'X';
   state.gameActive    = true;
-  state.aiThinking    = false;
+  state.inputLocked   = false;
 
   /* Clear every cell's classes, child marks, and aria labels */
   cells.forEach(cell =>
   {
     cell.className = 'cell';
-    cell.innerHTML = '';
+    cell.replaceChildren();
 
-    const idx = parseInt(cell.dataset.index);
+    const idx = Number(cell.dataset.index);
     const row = Math.floor(idx / 3) + 1;
     const col = (idx % 3) + 1;
     cell.setAttribute('aria-label', `Row ${row}, Column ${col}, empty`);
@@ -369,20 +462,7 @@ function startGame()
   /* If the AI is X it moves first */
   if (state.mode === 'pvai' && state.aiMark === 'X')
   {
-    state.aiThinking = true;
-    updateStatus();
-
-    const delay = 400 + Math.random() * 300;
-    setTimeout(() =>
-    {
-      if (state.gameActive)
-      {
-        makeAIMove();
-        state.aiThinking = false;
-        updateStatus();
-        updateHoverClasses();
-      }
-    }, delay);
+    scheduleAITurn();
   }
 }
 
@@ -468,10 +548,10 @@ cells.forEach(cell =>
  */
 function handleCellAction(cell)
 {
-  const idx = parseInt(cell.dataset.index);
+  const idx = Number(cell.dataset.index);
 
-  /* Ignore if the game is over, cell is taken, or AI is thinking */
-  if (!state.gameActive || state.board[idx] !== '' || state.aiThinking)
+  /* Ignore if the game is over, cell is taken, AI is thinking, or input is locked */
+  if (!state.gameActive || state.board[idx] !== '' || state.aiThinking || state.inputLocked)
   {
     return;
   }
@@ -482,6 +562,8 @@ function handleCellAction(cell)
     return;
   }
 
+  /* Lock input during placement animation */
+  state.inputLocked = true;
   placeMark(idx);
 
   /* Check for a win or draw */
@@ -494,36 +576,48 @@ function handleCellAction(cell)
 
   /* Hand the turn to the next player */
   switchPlayer();
+  state.inputLocked = false;
 
   /* Trigger the AI's response after a short delay */
   if (state.mode === 'pvai' && state.gameActive)
   {
-    state.aiThinking = true;
-    updateStatus();
-    updateHoverClasses();
-
-    const delay = 400 + Math.random() * 300;
-    setTimeout(() =>
-    {
-      if (state.gameActive)
-      {
-        makeAIMove();
-        state.aiThinking = false;
-
-        const result = checkResult();
-        if (result)
-        {
-          endGame(result);
-        }
-        else
-        {
-          switchPlayer();
-          updateStatus();
-          updateHoverClasses();
-        }
-      }
-    }, delay);
+    scheduleAITurn();
   }
+}
+
+/**
+ * Schedules the AI to make a move after a randomised delay.
+ * Stores the timeout ID so it can be cancelled on reset.
+ */
+function scheduleAITurn()
+{
+  state.aiThinking = true;
+  updateStatus();
+  updateHoverClasses();
+
+  const delay = AI_DELAY_MIN_MS + Math.random() * AI_DELAY_JITTER_MS;
+  state.aiTimeoutId = setTimeout(() =>
+  {
+    state.aiTimeoutId = null;
+
+    if (!state.gameActive) return;
+
+    makeAIMove();
+    state.aiThinking  = false;
+    state.inputLocked = false;
+
+    const result = checkResult();
+    if (result)
+    {
+      endGame(result);
+    }
+    else
+    {
+      switchPlayer();
+      updateStatus();
+      updateHoverClasses();
+    }
+  }, delay);
 }
 
 /**
@@ -595,13 +689,14 @@ function checkResult()
 
 /**
  * Ends the current round by updating scores, playing sounds,
- * animating the board, and showing the game-over overlay.
+ * animating the board, and scheduling the game-over overlay.
  *
  * @param {Object} result - Result from {@link checkResult}
  */
 function endGame(result)
 {
-  state.gameActive = false;
+  state.gameActive  = false;
+  state.inputLocked = true;
   statusEl.className = 'game-over';
 
   if (result.type === 'win')
@@ -632,22 +727,22 @@ function endGame(result)
       if (winner === 'X')
       {
         state.scores.p1++;
-        playWinSound();
       }
       else
       {
         state.scores.p2++;
-        playWinSound();
       }
+      playWinSound();
     }
 
     updateScoreboard();
 
     /* Show the overlay after the win animations have played */
-    setTimeout(() =>
+    state.overlayTimeoutId = setTimeout(() =>
     {
+      state.overlayTimeoutId = null;
       showOverlay(result);
-    }, 1200);
+    }, WIN_OVERLAY_DELAY_MS);
   }
   else
   {
@@ -668,10 +763,11 @@ function endGame(result)
       );
     });
 
-    setTimeout(() =>
+    state.overlayTimeoutId = setTimeout(() =>
     {
+      state.overlayTimeoutId = null;
       showOverlay(result);
-    }, 1000);
+    }, DRAW_OVERLAY_DELAY_MS);
   }
 }
 
@@ -711,13 +807,13 @@ function drawWinLine(pattern)
   const angle  = Math.atan2(cy - ay, cx - ax) * (180 / Math.PI);
 
   const line = document.createElement('div');
-  line.className           = 'win-line';
-  line.style.width         = `${length + 20}px`;
-  line.style.height        = '4px';
-  line.style.left          = `${ax - 10}px`;
-  line.style.top           = `${ay - 2}px`;
+  line.className             = 'win-line';
+  line.style.width           = `${length + 20}px`;
+  line.style.height          = '4px';
+  line.style.left            = `${ax - 10}px`;
+  line.style.top             = `${ay - 2}px`;
   line.style.transformOrigin = '0 50%';
-  line.style.transform     = `rotate(${angle}deg)`;
+  line.style.transform       = `rotate(${angle}deg)`;
 
   boardEl.appendChild(line);
 }
@@ -736,7 +832,7 @@ function drawWinLine(pattern)
 function showOverlay(result)
 {
   overlayMessage.className = 'overlay-message';
-  confettiContainer.innerHTML = '';
+  confettiContainer.replaceChildren();
 
   if (result.type === 'win')
   {
@@ -777,7 +873,7 @@ function hideOverlay()
 {
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
-  confettiContainer.innerHTML = '';
+  confettiContainer.replaceChildren();
 }
 
 /**
@@ -830,7 +926,7 @@ function updateScoreboard()
  */
 function animateScore(el, value)
 {
-  const prev = parseInt(el.textContent);
+  const prev = Number(el.textContent);
   el.textContent = value;
 
   if (value > prev)
@@ -945,8 +1041,8 @@ function aiMedium()
  */
 function findWinningMove(board, pattern, mark)
 {
-  const values    = pattern.map(i => board[i]);
-  const markCount = values.filter(v => v === mark).length;
+  const values     = pattern.map(i => board[i]);
+  const markCount  = values.filter(v => v === mark).length;
   const emptyCount = values.filter(v => v === '').length;
 
   if (markCount === 2 && emptyCount === 1)
@@ -992,9 +1088,9 @@ function aiHard()
  * Recursive minimax with alpha-beta pruning.
  *
  * Scores are relative to the AI:
- *   AI win  →  positive (10 − depth)
+ *   AI win    → positive (10 − depth)
  *   Human win → negative (depth − 10)
- *   Draw    →  0
+ *   Draw      → 0
  *
  * @param {string[]} board        - The 9-element board array (mutated in-place, restored before return)
  * @param {number}   depth        - Current recursion depth
@@ -1089,29 +1185,31 @@ document.addEventListener('keydown', e =>
     if (overlay.classList.contains('active'))
     {
       hideOverlay();
+      clearPendingTimers();
       showScreen('menu');
     }
-    else if (screens.game.classList.contains('active'))
+    else if (state.currentScreen === 'game')
     {
+      clearPendingTimers();
       showScreen('menu');
     }
-    else if (screens.side.classList.contains('active'))
+    else if (state.currentScreen === 'side')
     {
       showScreen('difficulty');
     }
-    else if (screens.difficulty.classList.contains('active'))
+    else if (state.currentScreen === 'difficulty')
     {
       showScreen('menu');
     }
   }
 
   /* ---- Arrow key grid navigation ---- */
-  if (!screens.game.classList.contains('active')) return;
+  if (state.currentScreen !== 'game') return;
 
   const focused = document.activeElement;
   if (!focused || !focused.classList.contains('cell')) return;
 
-  const idx = parseInt(focused.dataset.index);
+  const idx = Number(focused.dataset.index);
   let next  = null;
 
   switch (e.key)
@@ -1128,3 +1226,26 @@ document.addEventListener('keydown', e =>
     cells[next].focus();
   }
 });
+
+
+/* =============================================================
+ *  Module Exports (for unit testing)
+ *  -------------------------------------------------------------
+ *  In a browser context `typeof module` is 'undefined', so this
+ *  block is a no-op.  In Node / test runners it exposes the pure
+ *  logic functions.
+ * ============================================================= */
+
+if (typeof module !== 'undefined' && module.exports)
+{
+  module.exports =
+  {
+    WIN_PATTERNS,
+    getWinner,
+    getEmptyCells,
+    findWinningMove,
+    minimax,
+    checkResult,
+    state,
+  };
+}
