@@ -353,7 +353,10 @@ export class UIManager
 
     if (aiThinking)
     {
-      this.statusText.innerHTML = 'AI is thinking<span class="thinking-dots"></span>';
+      this.statusText.textContent = 'AI is thinking';
+      const dots = document.createElement('span');
+      dots.className = 'thinking-dots';
+      this.statusText.appendChild(dots);
       this.statusEl.classList.add(currentPlayer === 'X' ? 'x-turn' : 'o-turn');
       return;
     }

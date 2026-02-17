@@ -1,6 +1,22 @@
 {
   "name": "tic-tac-toe",
   "version": "1.0.0",
+  "description": "A polished, browser-based Tic-Tac-Toe game with three AI difficulties, dark neon theme, synthesised audio, and full keyboard accessibility — built with vanilla TypeScript.",
+  "author": "Geoff Freedman",
+  "license": "MIT",
+  "homepage": "https://gfreedman.github.io/tic-tac-toe/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gfreedman/tic-tac-toe"
+  },
+  "keywords": [
+    "tic-tac-toe",
+    "game",
+    "typescript",
+    "minimax",
+    "web-audio-api",
+    "accessible"
+  ],
   "scripts": {
     "dev": "esbuild src/main.ts --bundle --format=cjs --outfile=dist/script.js --watch --sourcemap",
     "build": "esbuild src/main.ts --bundle --format=cjs --outfile=dist/script.js --sourcemap"

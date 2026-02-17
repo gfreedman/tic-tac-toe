@@ -638,11 +638,6 @@ body
 
 /* ---- Focus rings (keyboard navigation) ---- */
 
-.cell:focus-visible
-{
-  box-shadow: 0 0 0 2px var(--x-color);
-}
-
 .cell.x-turn:focus-visible
 {
   box-shadow: 0 0 0 2px var(--x-color);
