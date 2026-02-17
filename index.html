@@ -16,18 +16,20 @@
     <div class="ambient-particles" id="ambient-particles"></div>
     <h1 class="title">Tic-Tac-Toe</h1>
     <div class="menu-buttons">
-      <button class="btn btn-primary" id="btn-pvp">Player vs Player</button>
-      <button class="btn btn-primary" id="btn-pvai">Player vs AI</button>
+      <button class="btn btn-primary" id="btn-pvp">&#x1F603; Player vs Player</button>
+      <button class="btn btn-primary" id="btn-pvai">&#x1F916; Player vs AI</button>
     </div>
   </div>
 
   <!-- Difficulty Selection Screen -->
   <div id="screen-difficulty" class="screen">
     <h2 class="subtitle">Choose Difficulty</h2>
-    <div class="menu-buttons">
-      <button class="btn btn-secondary" data-difficulty="easy">Easy</button>
-      <button class="btn btn-secondary" data-difficulty="medium">Medium</button>
-      <button class="btn btn-secondary" data-difficulty="hard">Hard (Unbeatable)</button>
+    <div class="difficulty-card">
+      <div class="menu-buttons">
+        <button class="btn btn-difficulty" data-difficulty="easy"><span class="difficulty-emoji">&#x1F920;</span> Easy</button>
+        <button class="btn btn-difficulty" data-difficulty="medium"><span class="difficulty-emoji">&#x1F914;</span> Medium</button>
+        <button class="btn btn-difficulty" data-difficulty="hard"><span class="difficulty-emoji">&#x1F62C;</span> Hard (Unbeatable)</button>
+      </div>
     </div>
     <button class="btn btn-back" id="btn-back-difficulty">Back</button>
   </div>
@@ -109,6 +111,6 @@
     </div>
   </div>
 
-  <script src="dist/script.js?v=2"></script>
+  <script src="dist/script.js?v=6"></script>
 </body>
 </html>
