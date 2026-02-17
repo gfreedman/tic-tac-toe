@@ -111,7 +111,7 @@ const {
   state,
   playTone,
   _resetAudioCtx,
-} = require('./script.js');
+} = require('./dist/script.js');
 
 
 /* =============================================================

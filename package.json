@@ -1,0 +1,12 @@
+{
+  "name": "tic-tac-toe",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "esbuild src/script.ts --outfile=dist/script.js --watch --sourcemap",
+    "build": "esbuild src/script.ts --outfile=dist/script.js --sourcemap"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.0"
+  }
+}

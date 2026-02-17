@@ -6,7 +6,7 @@
  *  three AI difficulty levels (easy / medium / hard-minimax).
  *
  *  Features:
- *  - Screen-based navigation (menu → difficulty → side → game)
+ *  - Screen-based navigation (menu -> difficulty -> side -> game)
  *  - CSS-drawn animated marks
  *  - Session score tracking
  *  - Web Audio API sound effects with mute toggle
@@ -16,54 +16,93 @@
 
 
 /* =============================================================
+ *  Type Definitions
+ * ============================================================= */
+
+type Player = 'X' | 'O';
+type Difficulty = 'easy' | 'medium' | 'hard';
+type GameMode = 'pvp' | 'pvai';
+type ScreenId = 'menu' | 'difficulty' | 'side' | 'game';
+type BoardCell = '' | 'X' | 'O';
+
+interface WinResult {
+  type: 'win';
+  winner: Player;
+  pattern: number[];
+}
+
+interface DrawResult {
+  type: 'draw';
+}
+
+type GameResult = WinResult | DrawResult | null;
+
+interface GameState {
+  mode:             GameMode | null;
+  difficulty:       Difficulty | null;
+  playerMark:       Player;
+  aiMark:           Player | null;
+  currentPlayer:    Player;
+  board:            BoardCell[];
+  gameActive:       boolean;
+  scores:           { p1: number; draws: number; p2: number };
+  muted:            boolean;
+  aiThinking:       boolean;
+  aiTimeoutId:      ReturnType<typeof setTimeout> | null;
+  overlayTimeoutId: ReturnType<typeof setTimeout> | null;
+  currentScreen:    ScreenId;
+  isTransitioning:  boolean;
+  inputLocked:      boolean;
+}
+
+interface ScoreElements {
+  p1:     HTMLElement;
+  draws:  HTMLElement;
+  p2:     HTMLElement;
+  label1: HTMLElement;
+  label2: HTMLElement;
+}
+
+/** Extend Window to include the webkit-prefixed AudioContext */
+interface Window {
+  webkitAudioContext: typeof AudioContext;
+}
+
+/** Satisfy strict mode for the CommonJS module guard */
+declare var module: { exports: Record<string, unknown> };
+
+
+/* =============================================================
  *  DOM Element References
  * ============================================================= */
 
-/** @type {Object<string, HTMLElement>} Map of screen IDs to elements */
-const screens =
+const screens: Record<ScreenId, HTMLElement> =
 {
-  menu:       document.getElementById('screen-menu'),
-  difficulty: document.getElementById('screen-difficulty'),
-  side:       document.getElementById('screen-side'),
-  game:       document.getElementById('screen-game'),
+  menu:       document.getElementById('screen-menu')!,
+  difficulty: document.getElementById('screen-difficulty')!,
+  side:       document.getElementById('screen-side')!,
+  game:       document.getElementById('screen-game')!,
 };
 
-/** @type {HTMLElement} Full-screen game-over overlay */
-const overlay          = document.getElementById('overlay');
+const overlay          = document.getElementById('overlay')!;
+const overlayMessage   = document.getElementById('overlay-message')!;
+const confettiContainer = document.getElementById('confetti-container')!;
+const statusEl         = document.getElementById('status')!;
+const statusText       = document.getElementById('status-text')!;
+const boardEl          = document.getElementById('board')!;
+const cells: HTMLElement[] = Array.from(document.querySelectorAll<HTMLElement>('.cell'));
 
-/** @type {HTMLElement} Result message heading inside the overlay */
-const overlayMessage   = document.getElementById('overlay-message');
-
-/** @type {HTMLElement} Container for confetti particle divs */
-const confettiContainer = document.getElementById('confetti-container');
-
-/** @type {HTMLElement} Status bar wrapper (carries turn-class) */
-const statusEl         = document.getElementById('status');
-
-/** @type {HTMLElement} Text span inside the status bar */
-const statusText       = document.getElementById('status-text');
-
-/** @type {HTMLElement} Board wrapper (flex column of rows) */
-const boardEl          = document.getElementById('board');
-
-/** @type {NodeListOf<HTMLElement>} All nine cell elements */
-const cells            = document.querySelectorAll('.cell');
-
-/** @type {Object} Scoreboard value and label elements */
-const scoreEls =
+const scoreEls: ScoreElements =
 {
-  p1:     document.getElementById('score-1'),
-  draws:  document.getElementById('score-draws'),
-  p2:     document.getElementById('score-2'),
-  label1: document.getElementById('score-label-1'),
-  label2: document.getElementById('score-label-2'),
+  p1:     document.getElementById('score-1')!,
+  draws:  document.getElementById('score-draws')!,
+  p2:     document.getElementById('score-2')!,
+  label1: document.getElementById('score-label-1')!,
+  label2: document.getElementById('score-label-2')!,
 };
 
-/** @type {HTMLElement} Mute toggle button */
-const muteToggle = document.getElementById('mute-toggle');
-
-/** @type {HTMLElement} Emoji icon inside the mute button */
-const muteIcon   = document.getElementById('mute-icon');
+const muteToggle = document.getElementById('mute-toggle')!;
+const muteIcon   = document.getElementById('mute-icon')!;
 
 
 /* =============================================================
@@ -73,20 +112,15 @@ const muteIcon   = document.getElementById('mute-icon');
 /**
  * All possible three-in-a-row winning patterns.
  * Each sub-array contains cell indices for one line.
- *
- * @constant {number[][]}
  */
-const WIN_PATTERNS =
+const WIN_PATTERNS: readonly number[][] =
 [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],   // rows
   [0, 3, 6], [1, 4, 7], [2, 5, 8],   // columns
   [0, 4, 8], [2, 4, 6],               // diagonals
 ];
 
-/**
- * Named audio frequency constants (Hz).
- * @enum {number}
- */
+/** Named audio frequency constants (Hz). */
 const NOTE =
 {
   C5:  523,
@@ -96,21 +130,12 @@ const NOTE =
   X_PLACE: 600,
   LOSE_HI: 400,
   LOSE_LO: 300,
-};
+} as const;
 
-/** @constant {number} Screen fade-out duration in ms */
 const SCREEN_TRANSITION_MS = 300;
-
-/** @constant {number} Minimum AI thinking delay in ms */
-const AI_DELAY_MIN_MS = 400;
-
-/** @constant {number} Random jitter added to AI delay in ms */
-const AI_DELAY_JITTER_MS = 300;
-
-/** @constant {number} Delay before showing overlay after a win */
+const AI_DELAY_MIN_MS      = 400;
+const AI_DELAY_JITTER_MS   = 300;
 const WIN_OVERLAY_DELAY_MS = 1200;
-
-/** @constant {number} Delay before showing overlay after a draw */
 const DRAW_OVERLAY_DELAY_MS = 1000;
 
 
@@ -118,27 +143,7 @@ const DRAW_OVERLAY_DELAY_MS = 1000;
  *  Game State
  * ============================================================= */
 
-/**
- * Central game state object.
- *
- * @type {Object}
- * @property {string|null}  mode            - 'pvp' | 'pvai'
- * @property {string|null}  difficulty      - 'easy' | 'medium' | 'hard'
- * @property {string}       playerMark      - Human's mark in AI mode ('X' | 'O')
- * @property {string}       aiMark          - AI's mark ('X' | 'O')
- * @property {string}       currentPlayer   - Mark of the player whose turn it is
- * @property {string[]}     board           - 9-element array of '' | 'X' | 'O'
- * @property {boolean}      gameActive      - Whether the current round is in play
- * @property {Object}       scores          - { p1, draws, p2 } session tallies
- * @property {boolean}      muted           - Whether sound effects are silenced
- * @property {boolean}      aiThinking      - True while the AI delay timer is running
- * @property {number|null}  aiTimeoutId     - Timeout ID for pending AI move (for cleanup)
- * @property {number|null}  overlayTimeoutId - Timeout ID for pending overlay show (for cleanup)
- * @property {string|null}  currentScreen   - Key of the currently active screen
- * @property {boolean}      isTransitioning - True while a screen fade is in progress
- * @property {boolean}      inputLocked     - True during mark placement animation
- */
-const state =
+const state: GameState =
 {
   mode:             null,
   difficulty:       null,
@@ -162,15 +167,12 @@ const state =
  *  Audio  (Web Audio API — no external files)
  * ============================================================= */
 
-/** @type {AudioContext|null} Lazily initialised audio context */
-let audioCtx = null;
+let audioCtx: AudioContext | null = null;
 
 /**
  * Returns the shared AudioContext, creating it on first call.
- *
- * @returns {AudioContext} The Web Audio context
  */
-function getAudioCtx()
+function getAudioCtx(): AudioContext
 {
   if (!audioCtx)
   {
@@ -181,13 +183,8 @@ function getAudioCtx()
 
 /**
  * Plays a single synthesised tone.
- *
- * @param {number} freq     - Frequency in Hz
- * @param {number} duration - Duration in seconds
- * @param {string} [type='sine']   - Oscillator waveform type
- * @param {number} [volume=0.15]   - Initial gain (0 – 1)
  */
-function playTone(freq, duration, type = 'sine', volume = 0.15)
+function playTone(freq: number, duration: number, type: OscillatorType = 'sine', volume: number = 0.15): void
 {
   if (state.muted) return;
 
@@ -216,18 +213,16 @@ function playTone(freq, duration, type = 'sine', volume = 0.15)
 
 /**
  * Plays the mark-placement sound (higher pitch for X, lower for O).
- *
- * @param {string} mark - 'X' or 'O'
  */
-function playPlaceSound(mark)
+function playPlaceSound(mark: Player): void
 {
   playTone(mark === 'X' ? NOTE.X_PLACE : NOTE.A4, 0.12, 'triangle');
 }
 
 /**
- * Plays a rising three-note victory jingle (C5 → E5 → G5).
+ * Plays a rising three-note victory jingle (C5 -> E5 -> G5).
  */
-function playWinSound()
+function playWinSound(): void
 {
   playTone(NOTE.C5, 0.15, 'sine');
   setTimeout(() => playTone(NOTE.E5, 0.15, 'sine'), 100);
@@ -237,7 +232,7 @@ function playWinSound()
 /**
  * Plays a descending two-note loss sound.
  */
-function playLoseSound()
+function playLoseSound(): void
 {
   playTone(NOTE.LOSE_HI, 0.2,  'sawtooth', 0.1);
   setTimeout(() => playTone(NOTE.LOSE_LO, 0.3, 'sawtooth', 0.1), 150);
@@ -246,7 +241,7 @@ function playLoseSound()
 /**
  * Plays a flat double-beep draw sound.
  */
-function playDrawSound()
+function playDrawSound(): void
 {
   playTone(NOTE.A4, 0.15, 'square', 0.08);
   setTimeout(() => playTone(NOTE.A4, 0.15, 'square', 0.08), 200);
@@ -255,16 +250,13 @@ function playDrawSound()
 
 /* =============================================================
  *  Timer Management
- *  -------------------------------------------------------------
- *  All game timeouts are tracked so they can be cancelled on
- *  reset or mode-change, preventing stale callbacks.
  * ============================================================= */
 
 /**
  * Cancels any pending AI move and overlay timers.
  * Resets the corresponding state flags.
  */
-function clearPendingTimers()
+function clearPendingTimers(): void
 {
   if (state.aiTimeoutId !== null)
   {
@@ -284,19 +276,13 @@ function clearPendingTimers()
 
 /* =============================================================
  *  Screen Navigation
- *  -------------------------------------------------------------
- *  Uses an isTransitioning lock to prevent race conditions when
- *  buttons are clicked during the 300ms fade between screens.
  * ============================================================= */
 
 /**
  * Transitions from the currently active screen to another.
  * Ignores calls if a transition is already in progress.
- *
- * @param {string}   screenId  - Key into the `screens` map
- * @param {Function} [onReady] - Optional callback fired after the new screen is visible
  */
-function showScreen(screenId, onReady)
+function showScreen(screenId: ScreenId, onReady?: () => void): void
 {
   if (state.isTransitioning) return;
 
@@ -339,7 +325,7 @@ function showScreen(screenId, onReady)
 
 /* ---- Mode selection ---- */
 
-document.getElementById('btn-pvp').addEventListener('click', () =>
+document.getElementById('btn-pvp')!.addEventListener('click', () =>
 {
   state.mode       = 'pvp';
   state.playerMark = 'X';
@@ -353,7 +339,7 @@ document.getElementById('btn-pvp').addEventListener('click', () =>
   showScreen('game', startGame);
 });
 
-document.getElementById('btn-pvai').addEventListener('click', () =>
+document.getElementById('btn-pvai')!.addEventListener('click', () =>
 {
   state.mode = 'pvai';
   showScreen('difficulty');
@@ -361,22 +347,22 @@ document.getElementById('btn-pvai').addEventListener('click', () =>
 
 /* ---- Difficulty selection ---- */
 
-document.querySelectorAll('[data-difficulty]').forEach(btn =>
+document.querySelectorAll<HTMLElement>('[data-difficulty]').forEach(btn =>
 {
   btn.addEventListener('click', () =>
   {
-    state.difficulty = btn.dataset.difficulty;
+    state.difficulty = btn.dataset.difficulty as Difficulty;
     showScreen('side');
   });
 });
 
 /* ---- Side (X / O) selection ---- */
 
-document.querySelectorAll('[data-side]').forEach(btn =>
+document.querySelectorAll<HTMLElement>('[data-side]').forEach(btn =>
 {
   btn.addEventListener('click', () =>
   {
-    state.playerMark = btn.dataset.side;
+    state.playerMark = btn.dataset.side as Player;
     state.aiMark     = state.playerMark === 'X' ? 'O' : 'X';
     state.scores     = { p1: 0, draws: 0, p2: 0 };
 
@@ -390,25 +376,25 @@ document.querySelectorAll('[data-side]').forEach(btn =>
 
 /* ---- Back buttons ---- */
 
-document.getElementById('btn-back-difficulty').addEventListener('click', () =>
+document.getElementById('btn-back-difficulty')!.addEventListener('click', () =>
 {
   showScreen('menu');
 });
 
-document.getElementById('btn-back-side').addEventListener('click', () =>
+document.getElementById('btn-back-side')!.addEventListener('click', () =>
 {
   showScreen('difficulty');
 });
 
 /* ---- Game-over overlay buttons ---- */
 
-document.getElementById('btn-play-again').addEventListener('click', () =>
+document.getElementById('btn-play-again')!.addEventListener('click', () =>
 {
   hideOverlay();
   startGame();
 });
 
-document.getElementById('btn-change-mode').addEventListener('click', () =>
+document.getElementById('btn-change-mode')!.addEventListener('click', () =>
 {
   hideOverlay();
   clearPendingTimers();
@@ -432,7 +418,7 @@ muteToggle.addEventListener('click', () =>
  * Resets the board and begins a new round.
  * If the AI plays as X it will make the first move after a short delay.
  */
-function startGame()
+function startGame(): void
 {
   clearPendingTimers();
 
@@ -471,7 +457,7 @@ function startGame()
  * Updates the status bar text and color class to reflect the
  * current game state (turn indicator, thinking, or game-over).
  */
-function updateStatus()
+function updateStatus(): void
 {
   statusEl.className = '';
 
@@ -505,7 +491,7 @@ function updateStatus()
  * Applies the correct hover-ghost and focus-ring classes to every
  * cell based on the current player and game state.
  */
-function updateHoverClasses()
+function updateHoverClasses(): void
 {
   const hoverClass = state.currentPlayer === 'X' ? 'x-hover' : 'o-hover';
   const focusClass = state.currentPlayer === 'X' ? 'x-turn'  : 'o-turn';
@@ -531,7 +517,7 @@ cells.forEach(cell =>
 {
   cell.addEventListener('click', () => handleCellAction(cell));
 
-  cell.addEventListener('keydown', e =>
+  cell.addEventListener('keydown', (e: KeyboardEvent) =>
   {
     if (e.key === 'Enter' || e.key === ' ')
     {
@@ -544,10 +530,8 @@ cells.forEach(cell =>
 /**
  * Handles a player's attempt to claim a cell (via click or keyboard).
  * Places the mark, checks for a result, and triggers the AI if needed.
- *
- * @param {HTMLElement} cell - The cell element that was activated
  */
-function handleCellAction(cell)
+function handleCellAction(cell: HTMLElement): void
 {
   const idx = Number(cell.dataset.index);
 
@@ -590,7 +574,7 @@ function handleCellAction(cell)
  * Schedules the AI to make a move after a randomised delay.
  * Stores the timeout ID so it can be cancelled on reset.
  */
-function scheduleAITurn()
+function scheduleAITurn(): void
 {
   state.aiThinking = true;
   updateStatus();
@@ -625,10 +609,8 @@ function scheduleAITurn()
  * Places a mark on the board at the given index.
  * Updates the board state, creates the CSS-drawn mark element,
  * refreshes the ARIA label, and plays a sound.
- *
- * @param {number} idx - Board index (0 – 8)
  */
-function placeMark(idx)
+function placeMark(idx: number): void
 {
   const mark = state.currentPlayer;
   state.board[idx] = mark;
@@ -653,7 +635,7 @@ function placeMark(idx)
  * Switches the current player from X to O or vice-versa,
  * then refreshes the status bar and hover classes.
  */
-function switchPlayer()
+function switchPlayer(): void
 {
   state.currentPlayer = state.currentPlayer === 'X' ? 'O' : 'X';
   updateStatus();
@@ -662,13 +644,8 @@ function switchPlayer()
 
 /**
  * Scans the board for a win or draw.
- *
- * @returns {Object|null} Result object:
- *   - `{ type: 'win', winner: 'X'|'O', pattern: number[] }` on a win
- *   - `{ type: 'draw' }` when the board is full with no winner
- *   - `null` if the game should continue
  */
-function checkResult()
+function checkResult(): GameResult
 {
   for (const pattern of WIN_PATTERNS)
   {
@@ -676,7 +653,7 @@ function checkResult()
 
     if (state.board[a] && state.board[a] === state.board[b] && state.board[a] === state.board[c])
     {
-      return { type: 'win', winner: state.board[a], pattern };
+      return { type: 'win', winner: state.board[a] as Player, pattern };
     }
   }
 
@@ -691,10 +668,8 @@ function checkResult()
 /**
  * Ends the current round by updating scores, playing sounds,
  * animating the board, and scheduling the game-over overlay.
- *
- * @param {Object} result - Result from {@link checkResult}
  */
-function endGame(result)
+function endGame(result: WinResult | DrawResult): void
 {
   state.gameActive  = false;
   state.inputLocked = true;
@@ -774,10 +749,8 @@ function endGame(result)
 
 /**
  * Adds the `.winning` glow class to the three winning cells.
- *
- * @param {number[]} pattern - Indices of the winning cells
  */
-function highlightWinningCells(pattern)
+function highlightWinningCells(pattern: number[]): void
 {
   pattern.forEach(idx => cells[idx].classList.add('winning'));
 }
@@ -786,10 +759,8 @@ function highlightWinningCells(pattern)
  * Renders a gradient line across the three winning cells.
  * Calculates position and angle from the first and last cell
  * in the winning pattern relative to the board element.
- *
- * @param {number[]} pattern - Indices of the winning cells [first, middle, last]
  */
-function drawWinLine(pattern)
+function drawWinLine(pattern: number[]): void
 {
   const [a, , c] = pattern;
   const cellA     = cells[a];
@@ -827,10 +798,8 @@ function drawWinLine(pattern)
 /**
  * Displays the game-over overlay with the appropriate message,
  * colour class, and confetti (on player wins).
- *
- * @param {Object} result - Result from {@link checkResult}
  */
-function showOverlay(result)
+function showOverlay(result: WinResult | DrawResult): void
 {
   overlayMessage.className = 'overlay-message';
   confettiContainer.replaceChildren();
@@ -864,41 +833,28 @@ function showOverlay(result)
 
   overlay.classList.add('active');
   overlay.setAttribute('aria-hidden', 'false');
-  document.getElementById('btn-play-again').focus();
+  document.getElementById('btn-play-again')!.focus();
 }
 
 /**
  * Hides the game-over overlay and clears confetti.
  */
-function hideOverlay()
+function hideOverlay(): void
 {
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
   confettiContainer.replaceChildren();
 }
 
-/** @constant {number} Total confetti pieces per burst */
 const CONFETTI_COUNT = 80;
-
-/** @constant {number} Tiny sparkle particles per burst */
-const SPARKLE_COUNT = 30;
-
-/** @constant {string[]} Confetti palette */
-const CONFETTI_COLORS = ['#0ff', '#f0f', '#ff0', '#0f0', '#f60', '#fff', '#f0f8', '#0ff8'];
-
-/** @constant {string[]} Shape class names (excluding sparkle) */
-const CONFETTI_SHAPES = ['square', 'circle', 'sliver'];
+const SPARKLE_COUNT  = 30;
+const CONFETTI_COLORS: readonly string[] = ['#0ff', '#f0f', '#ff0', '#0f0', '#f60', '#fff', '#f0f8', '#0ff8'];
+const CONFETTI_SHAPES: readonly string[] = ['square', 'circle', 'sliver'];
 
 /**
  * Spawns a celebratory burst of confetti and sparkle particles.
- *
- * Creates two layers:
- *   1. CONFETTI_COUNT larger pieces (squares, circles, slivers)
- *      with random sway, varied sizes, and staggered delays.
- *   2. SPARKLE_COUNT tiny 2-4px sparkles with a shimmer animation
- *      for the "pixie dust" effect.
  */
-function spawnConfetti()
+function spawnConfetti(): void
 {
   /* ---- Wave 1: main confetti pieces ---- */
   for (let i = 0; i < CONFETTI_COUNT; i++)
@@ -952,7 +908,7 @@ function spawnConfetti()
  * Refreshes all three scoreboard values (P1, draws, P2)
  * from the current game state.
  */
-function updateScoreboard()
+function updateScoreboard(): void
 {
   animateScore(scoreEls.p1,    state.scores.p1);
   animateScore(scoreEls.draws, state.scores.draws);
@@ -962,14 +918,11 @@ function updateScoreboard()
 /**
  * Sets a score element's text and triggers a bump animation
  * if the value increased.
- *
- * @param {HTMLElement} el    - The `.score-value` span
- * @param {number}      value - The new score to display
  */
-function animateScore(el, value)
+function animateScore(el: HTMLElement, value: number): void
 {
   const prev = Number(el.textContent);
-  el.textContent = value;
+  el.textContent = String(value);
 
   if (value > prev)
   {
@@ -982,19 +935,14 @@ function animateScore(el, value)
 
 /* =============================================================
  *  AI Logic
- *  -------------------------------------------------------------
- *  Three difficulty levels:
- *    Easy   — random empty cell
- *    Medium — win-if-can, block-if-must, else random
- *    Hard   — minimax with alpha-beta pruning (unbeatable)
  * ============================================================= */
 
 /**
  * Selects and executes an AI move based on the current difficulty.
  */
-function makeAIMove()
+function makeAIMove(): void
 {
-  let move;
+  let move: number | null | undefined;
 
   switch (state.difficulty)
   {
@@ -1019,13 +967,10 @@ function makeAIMove()
 
 /**
  * Returns an array of indices for all empty cells on the board.
- *
- * @param {string[]} board - The 9-element board array
- * @returns {number[]} Indices of empty cells
  */
-function getEmptyCells(board)
+function getEmptyCells(board: BoardCell[]): number[]
 {
-  return board.reduce((acc, val, idx) =>
+  return board.reduce<number[]>((acc, val, idx) =>
   {
     if (val === '') acc.push(idx);
     return acc;
@@ -1034,10 +979,8 @@ function getEmptyCells(board)
 
 /**
  * Easy AI — picks a random empty cell.
- *
- * @returns {number} Index of the chosen cell
  */
-function aiEasy()
+function aiEasy(): number
 {
   const empty = getEmptyCells(state.board);
   return empty[Math.floor(Math.random() * empty.length)];
@@ -1046,12 +989,10 @@ function aiEasy()
 /**
  * Medium AI — checks for an immediate win, then blocks the
  * opponent's immediate win, and falls back to a random move.
- *
- * @returns {number} Index of the chosen cell
  */
-function aiMedium()
+function aiMedium(): number
 {
-  const ai    = state.aiMark;
+  const ai    = state.aiMark!;
   const human = state.playerMark;
 
   /* 1. Try to win in one move */
@@ -1075,13 +1016,8 @@ function aiMedium()
 /**
  * Checks whether a specific winning pattern has two marks of
  * the given type plus one empty cell (i.e. one move to win/lose).
- *
- * @param {string[]} board   - The 9-element board array
- * @param {number[]} pattern - A three-index winning pattern
- * @param {string}   mark    - The mark to look for ('X' | 'O')
- * @returns {number|null} The empty cell index that completes the line, or null
  */
-function findWinningMove(board, pattern, mark)
+function findWinningMove(board: BoardCell[], pattern: readonly number[], mark: Player): number | null
 {
   const values     = pattern.map(i => board[i]);
   const markCount  = values.filter(v => v === mark).length;
@@ -1098,15 +1034,13 @@ function findWinningMove(board, pattern, mark)
  * Hard AI — uses the minimax algorithm with alpha-beta pruning
  * to find the optimal move.  Always plays perfectly; the best
  * a human can achieve is a draw.
- *
- * @returns {number|null} Index of the optimal cell, or null if board is full
  */
-function aiHard()
+function aiHard(): number | null
 {
-  const ai    = state.aiMark;
+  const ai    = state.aiMark!;
   const human = state.playerMark;
   let bestScore = -Infinity;
-  let bestMove  = null;
+  let bestMove: number | null  = null;
 
   const empty = getEmptyCells(state.board);
 
@@ -1130,20 +1064,11 @@ function aiHard()
  * Recursive minimax with alpha-beta pruning.
  *
  * Scores are relative to the AI:
- *   AI win    → positive (10 − depth)
- *   Human win → negative (depth − 10)
- *   Draw      → 0
- *
- * @param {string[]} board        - The 9-element board array (mutated in-place, restored before return)
- * @param {number}   depth        - Current recursion depth
- * @param {boolean}  isMaximizing - True when it is the AI's hypothetical turn
- * @param {number}   alpha        - Best score the maximizer can guarantee
- * @param {number}   beta         - Best score the minimizer can guarantee
- * @param {string}   ai           - The AI's mark ('X' | 'O')
- * @param {string}   human        - The human's mark ('X' | 'O')
- * @returns {number} The evaluated score for this board position
+ *   AI win    -> positive (10 - depth)
+ *   Human win -> negative (depth - 10)
+ *   Draw      -> 0
  */
-function minimax(board, depth, isMaximizing, alpha, beta, ai, human)
+function minimax(board: BoardCell[], depth: number, isMaximizing: boolean, alpha: number, beta: number, ai: Player, human: Player): number
 {
   const winner = getWinner(board);
   if (winner === ai)    return 10 - depth;
@@ -1194,17 +1119,14 @@ function minimax(board, depth, isMaximizing, alpha, beta, ai, human)
 
 /**
  * Scans the board for a completed three-in-a-row.
- *
- * @param {string[]} board - The 9-element board array
- * @returns {string|null} The winning mark ('X' | 'O'), or null if no winner
  */
-function getWinner(board)
+function getWinner(board: BoardCell[]): Player | null
 {
   for (const [a, b, c] of WIN_PATTERNS)
   {
     if (board[a] && board[a] === board[b] && board[a] === board[c])
     {
-      return board[a];
+      return board[a] as Player;
     }
   }
   return null;
@@ -1213,13 +1135,9 @@ function getWinner(board)
 
 /* =============================================================
  *  Keyboard Navigation
- *  -------------------------------------------------------------
- *  - Escape: navigate back through screens / close overlay
- *  - Arrow keys: move focus between cells on the board
- *  - Enter / Space: place a mark (handled per-cell above)
  * ============================================================= */
 
-document.addEventListener('keydown', e =>
+document.addEventListener('keydown', (e: KeyboardEvent) =>
 {
   /* ---- Escape key: back navigation ---- */
   if (e.key === 'Escape')
@@ -1248,11 +1166,11 @@ document.addEventListener('keydown', e =>
   /* ---- Arrow key grid navigation ---- */
   if (state.currentScreen !== 'game') return;
 
-  const focused = document.activeElement;
+  const focused = document.activeElement as HTMLElement | null;
   if (!focused || !focused.classList.contains('cell')) return;
 
   const idx = Number(focused.dataset.index);
-  let next  = null;
+  let next: number | null  = null;
 
   switch (e.key)
   {
@@ -1279,7 +1197,7 @@ document.addEventListener('keydown', e =>
  * container.  Each particle floats upward via pure CSS animation
  * — zero ongoing JS cost after creation.
  */
-function spawnAmbientParticles()
+function spawnAmbientParticles(): void
 {
   const container = document.getElementById('ambient-particles');
   if (!container) return;
