@@ -666,8 +666,8 @@ function checkResult(): GameResult
 }
 
 /**
- * Ends the current round by updating scores, playing sounds,
- * animating the board, and scheduling the game-over overlay.
+ * Ends the current round by deactivating the game and
+ * dispatching to the appropriate win or draw handler.
  */
 function endGame(result: WinResult | DrawResult): void
 {
@@ -677,74 +677,95 @@ function endGame(result: WinResult | DrawResult): void
 
   if (result.type === 'win')
   {
-    const winner = result.winner;
-    highlightWinningCells(result.pattern);
-    drawWinLine(result.pattern);
-
-    if (state.mode === 'pvai')
-    {
-      if (winner === state.playerMark)
-      {
-        statusText.textContent = 'You win!';
-        state.scores.p1++;
-        playWinSound();
-      }
-      else
-      {
-        statusText.textContent = 'AI wins!';
-        state.scores.p2++;
-        playLoseSound();
-      }
-    }
-    else
-    {
-      statusText.textContent = `${winner} wins!`;
-
-      if (winner === 'X')
-      {
-        state.scores.p1++;
-      }
-      else
-      {
-        state.scores.p2++;
-      }
-      playWinSound();
-    }
-
-    updateScoreboard();
-
-    /* Show the overlay after the win animations have played */
-    state.overlayTimeoutId = setTimeout(() =>
-    {
-      state.overlayTimeoutId = null;
-      showOverlay(result);
-    }, WIN_OVERLAY_DELAY_MS);
+    endGameWithWin(result);
   }
   else
   {
-    /* Draw */
-    statusText.textContent = 'It\'s a draw!';
-    state.scores.draws++;
-    updateScoreboard();
-    playDrawSound();
-
-    /* Shake every cell briefly */
-    cells.forEach(cell =>
-    {
-      cell.classList.add('shake');
-      cell.addEventListener(
-        'animationend',
-        () => cell.classList.remove('shake'),
-        { once: true }
-      );
-    });
-
-    state.overlayTimeoutId = setTimeout(() =>
-    {
-      state.overlayTimeoutId = null;
-      showOverlay(result);
-    }, DRAW_OVERLAY_DELAY_MS);
+    endGameWithDraw(result);
   }
+}
+
+/**
+ * Handles a win: animates the board, updates score and status,
+ * plays the appropriate sound, and schedules the overlay.
+ */
+function endGameWithWin(result: WinResult): void
+{
+  highlightWinningCells(result.pattern);
+  drawWinLine(result.pattern);
+  updateWinStatus(result.winner);
+  updateScoreboard();
+
+  state.overlayTimeoutId = setTimeout(() =>
+  {
+    state.overlayTimeoutId = null;
+    showOverlay(result);
+  }, WIN_OVERLAY_DELAY_MS);
+}
+
+/**
+ * Sets the status text, increments the correct score counter,
+ * and plays the win or loss sound based on game mode.
+ */
+function updateWinStatus(winner: Player): void
+{
+  if (state.mode === 'pvai')
+  {
+    if (winner === state.playerMark)
+    {
+      statusText.textContent = 'You win!';
+      state.scores.p1++;
+      playWinSound();
+    }
+    else
+    {
+      statusText.textContent = 'AI wins!';
+      state.scores.p2++;
+      playLoseSound();
+    }
+  }
+  else
+  {
+    statusText.textContent = `${winner} wins!`;
+
+    if (winner === 'X')
+    {
+      state.scores.p1++;
+    }
+    else
+    {
+      state.scores.p2++;
+    }
+    playWinSound();
+  }
+}
+
+/**
+ * Handles a draw: updates score and status, shakes the cells,
+ * plays the draw sound, and schedules the overlay.
+ */
+function endGameWithDraw(result: DrawResult): void
+{
+  statusText.textContent = 'It\'s a draw!';
+  state.scores.draws++;
+  updateScoreboard();
+  playDrawSound();
+
+  cells.forEach(cell =>
+  {
+    cell.classList.add('shake');
+    cell.addEventListener(
+      'animationend',
+      () => cell.classList.remove('shake'),
+      { once: true }
+    );
+  });
+
+  state.overlayTimeoutId = setTimeout(() =>
+  {
+    state.overlayTimeoutId = null;
+    showOverlay(result);
+  }, DRAW_OVERLAY_DELAY_MS);
 }
 
 /**
