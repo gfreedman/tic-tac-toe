@@ -17,7 +17,7 @@
  * ============================================================
  */
 
-import type { BoardCell, Player, Difficulty } from './types';
+import type { BoardCell, Player, Difficulty, GameResult } from './types';
 
 
 /**
@@ -170,6 +170,26 @@ export class AIEngine
   }
 
   /**
+   * Scans the board for a win or draw and returns a typed result.
+   * Returns null if the game is still in progress.
+   *
+   * Extracted here so it can be unit-tested without a Game instance.
+   */
+  static checkResult(board: BoardCell[]): GameResult
+  {
+    for (const pattern of AIEngine.WIN_PATTERNS)
+    {
+      const [a, b, c] = pattern;
+      if (board[a] && board[a] === board[b] && board[a] === board[c])
+      {
+        return { type: 'win', winner: board[a] as Player, pattern };
+      }
+    }
+    if (!board.includes('')) return { type: 'draw' };
+    return null;
+  }
+
+  /**
    * Public entry point: selects an AI move based on the given difficulty.
    *
    * @param board      - The current 9-element board.
@@ -185,7 +205,7 @@ export class AIEngine
       case 'easy':   return AIEngine.easyMove(board);
       case 'medium': return AIEngine.mediumMove(board, aiMark, playerMark);
       case 'hard':   return AIEngine.hardMove(board, aiMark, playerMark);
-      default:       return AIEngine.easyMove(board);
+      default:       throw new Error(`Unknown difficulty: ${difficulty satisfies never}`);
     }
   }
 

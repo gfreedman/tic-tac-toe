@@ -156,30 +156,3 @@ document.addEventListener('keydown', (e: KeyboardEvent) =>
 ui.spawnAmbientParticles();
 
 
-/* =============================================================
- *  Module Exports (for unit testing)
- *  -----------------------------------------------------------
- *  In a browser context `typeof module` is 'undefined', so this
- *  block is a no-op.  In Node (test runner) it exposes the pure
- *  logic functions and state needed by the test suite.
- *
- *  Static AIEngine methods are bound to preserve `this` context.
- *  Game.checkResult and AudioManager.playTone are wrapped in
- *  closures so tests call them as plain functions.
- * ============================================================= */
-
-if (typeof module !== 'undefined' && module.exports)
-{
-  module.exports =
-  {
-    WIN_PATTERNS: AIEngine.WIN_PATTERNS,
-    getWinner:       AIEngine.getWinner.bind(AIEngine),
-    getEmptyCells:   AIEngine.getEmptyCells.bind(AIEngine),
-    findWinningMove: AIEngine.findWinningMove.bind(AIEngine),
-    minimax:         AIEngine.minimax.bind(AIEngine),
-    checkResult:     () => game.checkResult(),
-    state,
-    playTone:        (freq: number, duration: number, type?: OscillatorType, volume?: number) => audio.playTone(freq, duration, type, volume),
-    _resetAudioCtx:  () => audio._resetAudioCtx(),
-  };
-}

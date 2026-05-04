@@ -384,37 +384,10 @@ export class Game
    *  Result Checking & End Game
    * ============================================================= */
 
-  /**
-   * Scans the board for a win or draw.
-   *
-   * Checks every WIN_PATTERN for three matching marks, then checks
-   * for a full board (draw).  Returns null if the game is still
-   * in progress.
-   *
-   * Public (not private) because it's also exposed via module
-   * exports for unit testing.
-   */
-  checkResult(): GameResult
+  /** Scans the board for a win or draw; returns null if still in progress. */
+  private checkResult(): GameResult
   {
-    /* Check every win pattern for three-in-a-row */
-    for (const pattern of AIEngine.WIN_PATTERNS)
-    {
-      const [a, b, c] = pattern;
-
-      if (this.state.board[a] && this.state.board[a] === this.state.board[b] && this.state.board[a] === this.state.board[c])
-      {
-        return { type: 'win', winner: this.state.board[a] as Player, pattern };
-      }
-    }
-
-    /* If no empty cells remain, it's a draw */
-    if (!this.state.board.includes(''))
-    {
-      return { type: 'draw' };
-    }
-
-    /* Game still in progress */
-    return null;
+    return AIEngine.checkResult(this.state.board);
   }
 
   /**
@@ -433,7 +406,7 @@ export class Game
     }
     else
     {
-      this.endGameWithDraw(result);
+      this.endGameWithDraw();
     }
   }
 
@@ -499,7 +472,7 @@ export class Game
    * Handles a draw: updates score and status text, shakes the cells,
    * plays the draw sound, and schedules the game-over overlay.
    */
-  private endGameWithDraw(_result: DrawResult): void
+  private endGameWithDraw(): void
   {
     this.ui.setStatusText('It\'s a draw!');
     this.state.scores.draws++;
@@ -507,7 +480,6 @@ export class Game
     this.audio.playDrawSound();
     this.ui.shakeCells();
 
-    /* Show the overlay after a slightly shorter delay than wins */
     this.state.overlayTimeoutId = setTimeout(() =>
     {
       this.state.overlayTimeoutId = null;

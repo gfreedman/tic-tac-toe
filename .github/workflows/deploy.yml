@@ -32,9 +32,11 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      # Deploy only the clean _site/ directory (index.html, style.css, dist/).
+      # Source files, node_modules, and tooling config are not included.
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - id: deployment
         uses: actions/deploy-pages@v4
