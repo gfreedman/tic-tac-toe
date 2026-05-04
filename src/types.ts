@@ -127,9 +127,6 @@ declare global
   {
     webkitAudioContext: typeof AudioContext;
   }
-
-  /** Satisfy strict mode for the CommonJS module guard in main.ts. */
-  var module: { exports: Record<string, unknown> };
 }
 
 export type { Player, Difficulty, GameMode, ScreenId, BoardCell, WinResult, DrawResult, GameResult, GameState, ScoreElements };

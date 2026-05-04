@@ -2,11 +2,11 @@
  * ============================================================
  *  Tic-Tac-Toe — Unit Tests
  * ============================================================
- *  Tests the pure logic functions exported from script.js:
+ *  Tests the pure logic functions exported from test-exports.js:
  *    WIN_PATTERNS, getWinner, getEmptyCells, findWinningMove,
- *    minimax, checkResult, state
+ *    minimax, checkResult, makeAudioManager
  *
- *  Run with: node --test script.test.js
+ *  Run with: npm test
  * ============================================================
  */
 
@@ -17,17 +17,11 @@ const assert = require('node:assert/strict');
 /* =============================================================
  *  DOM Mocks
  *  -------------------------------------------------------------
- *  script.js grabs DOM elements at the top level via
- *  document.getElementById / querySelectorAll.  We provide
- *  minimal stubs so the file can be required in Node.
+ *  test-exports.ts pulls in AudioManager which references
+ *  window.AudioContext at call time (not load time), so we only
+ *  need a minimal global.window stub here.
  * ============================================================= */
 
-/**
- * Creates a fresh mock element so each getElementById call gets
- * its own reference.
- *
- * @returns {Object} A minimal DOM element stub
- */
 function makeMockElement()
 {
   return {
@@ -45,17 +39,15 @@ function makeMockElement()
   };
 }
 
-/* Stub out the global `document` APIs script.js needs at load time */
 global.document =
 {
   getElementById()   { return makeMockElement(); },
   querySelectorAll()
   {
-    /* Return 9 mock cells with dataset.index set */
     return Array.from({ length: 9 }, (_, i) =>
     {
-      const el    = makeMockElement();
-      el.dataset  = { index: String(i) };
+      const el   = makeMockElement();
+      el.dataset = { index: String(i) };
       el.tabIndex = 0;
       return el;
     });
@@ -65,10 +57,9 @@ global.document =
   createElement()    { return makeMockElement(); },
 };
 
-/* Bridge window ↔ global so window.AudioContext resolves in Node */
 global.window = global;
 
-/* Stub AudioContext (Web Audio API) */
+/* Default AudioContext stub (overridden per-test in the Audio suite). */
 global.AudioContext = function ()
 {
   return {
@@ -76,7 +67,7 @@ global.AudioContext = function ()
     {
       return {
         type:      '',
-        frequency: { setValueAtTime() {} },
+        frequency: { value: 0 },
         connect()  {},
         start()    {},
         stop()     {},
@@ -85,7 +76,7 @@ global.AudioContext = function ()
     createGain()
     {
       return {
-        gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {} },
+        gain: { value: 0, exponentialRampToValueAtTime() {} },
         connect() {},
       };
     },
@@ -108,53 +99,42 @@ const {
   findWinningMove,
   minimax,
   checkResult,
-  state,
-  playTone,
-  _resetAudioCtx,
-} = require('./dist/script.js');
+  makeAudioManager,
+} = require('./dist/test-exports.js');
 
 
 /* =============================================================
  *  Helpers
  * ============================================================= */
 
-/**
- * Resets the board to 9 empty strings and restores default state
- * properties needed by checkResult.
- */
-function resetBoard()
+/** Returns a fresh empty 9-cell board. */
+function freshBoard()
 {
-  state.board         = Array(9).fill('');
-  state.currentPlayer = 'X';
-  state.gameActive    = true;
-  state.playerMark    = 'X';
-  state.aiMark        = 'O';
-  state.mode          = 'pvp';
-  state.inputLocked   = false;
+  return Array(9).fill('');
 }
 
 /**
- * Fills the board from a compact 9-character string.
- * 'X' -> 'X', 'O' -> 'O', anything else -> '' (empty).
+ * Fills the board in-place from a compact 9-character string.
+ * 'X' → 'X', 'O' → 'O', anything else → '' (empty).
  *
- * @param {string} str - A 9-character board layout, e.g. "XOX OX OX"
+ * @param {string[]} board
+ * @param {string}   str   - e.g. "XOX OX OX"
  */
-function setBoard(str)
+function setBoard(board, str)
 {
   for (let i = 0; i < 9; i++)
   {
     const ch = str[i];
-    state.board[i] = (ch === 'X' || ch === 'O') ? ch : '';
+    board[i] = (ch === 'X' || ch === 'O') ? ch : '';
   }
 }
 
 /**
- * Scans all WIN_PATTERNS for a winning move, mirroring
- * the medium AI's behaviour.
+ * Scans all WIN_PATTERNS for a winning move, mirroring the medium AI.
  *
- * @param {string[]} board - The 9-element board array
- * @param {string}   mark  - Mark to find a winning move for
- * @returns {number|null} Index of the winning cell, or null
+ * @param {string[]} board
+ * @param {string}   mark
+ * @returns {number|null}
  */
 function findBestWinningMove(board, mark)
 {
@@ -170,11 +150,11 @@ function findBestWinningMove(board, mark)
  * Recursive game player that tries every possible human move
  * against the minimax AI and verifies the AI never loses.
  *
- * @param {string[]} board   - Current board state
- * @param {string}   current - Whose turn it is
- * @param {string}   ai      - AI's mark
- * @param {string}   human   - Human's mark
- * @returns {boolean} True if AI never lost in this subtree
+ * @param {string[]} board
+ * @param {string}   current - whose turn it is
+ * @param {string}   ai
+ * @param {string}   human
+ * @returns {boolean}
  */
 function aiNeverLoses(board, current, ai, human)
 {
@@ -383,22 +363,21 @@ describe('findWinningMove', () =>
 
 
 /* =============================================================
- *  Tests — checkResult (uses state.board)
+ *  Tests — checkResult
  * ============================================================= */
 
 describe('checkResult', () =>
 {
-  beforeEach(resetBoard);
-
   it('should return null for an empty board', () =>
   {
-    assert.equal(checkResult(), null);
+    assert.equal(checkResult(freshBoard()), null);
   });
 
   it('should detect X win with pattern', () =>
   {
-    setBoard('XXX OO   ');
-    const result = checkResult();
+    const board = freshBoard();
+    setBoard(board, 'XXX OO   ');
+    const result = checkResult(board);
     assert.notEqual(result, null);
     assert.equal(result.type, 'win');
     assert.equal(result.winner, 'X');
@@ -407,8 +386,9 @@ describe('checkResult', () =>
 
   it('should detect O win via column', () =>
   {
-    setBoard('XO  OX O ');
-    const result = checkResult();
+    const board = freshBoard();
+    setBoard(board, 'XO  OX O ');
+    const result = checkResult(board);
     assert.notEqual(result, null);
     assert.equal(result.type, 'win');
     assert.equal(result.winner, 'O');
@@ -417,22 +397,25 @@ describe('checkResult', () =>
 
   it('should detect a draw when board is full with no winner', () =>
   {
-    setBoard('XOXXOOOXX');
-    const result = checkResult();
+    const board = freshBoard();
+    setBoard(board, 'XOXXOOOXX');
+    const result = checkResult(board);
     assert.notEqual(result, null);
     assert.equal(result.type, 'draw');
   });
 
   it('should return null for an in-progress game', () =>
   {
-    setBoard('XO  X    ');
-    assert.equal(checkResult(), null);
+    const board = freshBoard();
+    setBoard(board, 'XO  X    ');
+    assert.equal(checkResult(board), null);
   });
 
   it('should detect diagonal win', () =>
   {
-    setBoard('X  OXO  X');
-    const result = checkResult();
+    const board = freshBoard();
+    setBoard(board, 'X  OXO  X');
+    const result = checkResult(board);
     assert.equal(result.type, 'win');
     assert.equal(result.winner, 'X');
     assert.deepEqual(result.pattern, [0, 4, 8]);
@@ -440,8 +423,9 @@ describe('checkResult', () =>
 
   it('should detect anti-diagonal win', () =>
   {
-    setBoard('X O O O X');
-    const result = checkResult();
+    const board = freshBoard();
+    setBoard(board, 'X O O O X');
+    const result = checkResult(board);
     assert.equal(result.type, 'win');
     assert.equal(result.winner, 'O');
     assert.deepEqual(result.pattern, [2, 4, 6]);
@@ -543,13 +527,11 @@ describe('findWinningMove across all patterns', () =>
 
 
 /* =============================================================
- *  Tests — Edge cases & state integrity
+ *  Tests — Edge cases
  * ============================================================= */
 
 describe('Edge cases', () =>
 {
-  beforeEach(resetBoard);
-
   it('getWinner should handle board with only one mark', () =>
   {
     assert.equal(getWinner(['X','','', '','','', '','','']), null);
@@ -570,7 +552,7 @@ describe('Edge cases', () =>
 
   it('checkResult should detect all 8 win patterns', () =>
   {
-    const winBoards =
+    const winLayouts =
     [
       'XXX      ',
       '   XXX   ',
@@ -582,21 +564,15 @@ describe('Edge cases', () =>
       '  X X X  ',
     ];
 
-    for (const layout of winBoards)
+    for (const layout of winLayouts)
     {
-      setBoard(layout);
-      const result = checkResult();
+      const board = freshBoard();
+      setBoard(board, layout);
+      const result = checkResult(board);
       assert.notEqual(result, null, `no result for layout: ${layout}`);
       assert.equal(result.type, 'win');
       assert.equal(result.winner, 'X');
     }
-  });
-
-  it('state.board defaults to 9 empty strings', () =>
-  {
-    resetBoard();
-    assert.equal(state.board.length, 9);
-    assert.ok(state.board.every(c => c === ''));
   });
 });
 
@@ -604,19 +580,23 @@ describe('Edge cases', () =>
 /* =============================================================
  *  Tests — Audio pipeline (playTone)
  *  -------------------------------------------------------------
- *  Uses a tracking mock to verify the exact Web Audio API call
- *  sequence.  These tests exist to catch regressions like
- *  replacing gain.gain.value with setValueAtTime (which silently
- *  breaks the exponential ramp in real browsers).
+ *  Each test creates a fresh AudioManager (so audioCtx is null)
+ *  and installs a tracking mock before the first playTone call.
+ *  No shared state or reset helpers needed.
  * ============================================================= */
 
 describe('Audio pipeline', () =>
 {
   const savedAudioContext = global.AudioContext;
 
+  let audio;
+  let muted;
+
   /**
    * Creates a tracking AudioContext mock.
    * Every meaningful API call is recorded in `calls`.
+   * Must be called before audio.playTone() so the lazy context
+   * picks up the mock on first creation.
    */
   function makeTrackingMock()
   {
@@ -642,8 +622,8 @@ describe('Audio pipeline', () =>
             _v: 0,
             get value()  { return this._v; },
             set value(v) { calls.push(['gain.value', v]); this._v = v; },
-            setValueAtTime(v, t)                { calls.push(['gain.setValueAtTime', v, t]); },
-            exponentialRampToValueAtTime(v, t)   { calls.push(['gain.exponentialRamp', v, t]); },
+            setValueAtTime(v, t)              { calls.push(['gain.setValueAtTime', v, t]); },
+            exponentialRampToValueAtTime(v, t) { calls.push(['gain.exponentialRamp', v, t]); },
           },
           connect() { calls.push('gain.connect'); },
         };
@@ -660,20 +640,19 @@ describe('Audio pipeline', () =>
 
   beforeEach(() =>
   {
-    _resetAudioCtx();
-    state.muted = false;
+    muted = false;
+    audio = makeAudioManager(() => muted);
   });
 
   afterEach(() =>
   {
     global.AudioContext = savedAudioContext;
-    _resetAudioCtx();
   });
 
   it('should set gain.value directly — NOT setValueAtTime', () =>
   {
     const { calls } = makeTrackingMock();
-    playTone(440, 0.12, 'sine', 0.15);
+    audio.playTone(440, 0.12, 'sine', 0.15);
 
     const setValue = calls.find(c => Array.isArray(c) && c[0] === 'gain.value');
     assert.ok(setValue, 'gain.gain.value must be set directly');
@@ -686,7 +665,7 @@ describe('Audio pipeline', () =>
   it('should schedule exponentialRampToValueAtTime to fade out', () =>
   {
     const { calls } = makeTrackingMock();
-    playTone(440, 0.12, 'sine', 0.15);
+    audio.playTone(440, 0.12, 'sine', 0.15);
 
     const ramp = calls.find(c => Array.isArray(c) && c[0] === 'gain.exponentialRamp');
     assert.ok(ramp, 'exponentialRampToValueAtTime must be scheduled');
@@ -697,7 +676,7 @@ describe('Audio pipeline', () =>
   it('should connect osc → gain → destination and start/stop', () =>
   {
     const { calls } = makeTrackingMock();
-    playTone(440, 0.12);
+    audio.playTone(440, 0.12);
 
     assert.ok(calls.includes('osc.connect'),  'oscillator must connect to gain');
     assert.ok(calls.includes('gain.connect'),  'gain must connect to destination');
@@ -713,7 +692,7 @@ describe('Audio pipeline', () =>
     const { calls, mockCtx } = makeTrackingMock();
     mockCtx.state = 'suspended';
 
-    playTone(440, 0.12);
+    audio.playTone(440, 0.12);
     assert.ok(calls.includes('ctx.resume'), 'must call resume() on suspended context');
   });
 
@@ -722,16 +701,16 @@ describe('Audio pipeline', () =>
     const { calls, mockCtx } = makeTrackingMock();
     mockCtx.state = 'running';
 
-    playTone(440, 0.12);
+    audio.playTone(440, 0.12);
     assert.ok(!calls.includes('ctx.resume'), 'must not call resume() on running context');
   });
 
   it('should do nothing when muted', () =>
   {
     const { calls } = makeTrackingMock();
-    state.muted = true;
+    muted = true;
 
-    playTone(440, 0.12);
+    audio.playTone(440, 0.12);
     assert.equal(calls.length, 0, 'no audio API calls when muted');
   });
 });

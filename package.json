@@ -18,8 +18,11 @@
     "accessible"
   ],
   "scripts": {
-    "dev": "esbuild src/main.ts --bundle --format=cjs --outfile=dist/script.js --watch --sourcemap",
-    "build": "esbuild src/main.ts --bundle --format=cjs --outfile=dist/script.js --sourcemap"
+    "dev": "esbuild src/main.ts --bundle --format=iife --outfile=dist/script.js --watch --sourcemap",
+    "build": "node scripts/build.mjs",
+    "build:test": "node scripts/build-test.mjs",
+    "pretest": "npm run build:test",
+    "test": "node --test script.test.js"
   },
   "devDependencies": {
     "esbuild": "^0.19.0",

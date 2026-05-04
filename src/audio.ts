@@ -23,22 +23,18 @@ import type { Player } from './types';
 /** Named audio frequency constants (Hz). */
 const NOTE =
 {
-  C4:       262,
-  E4:       330,
-  G4:       392,
-  A4:       440,
-  B4:       494,
-  C5:       523,
-  D5:       587,
-  E5:       659,
-  G5:       784,
-  A5:       880,
-  C6:       1047,
-  X_PLACE:  600,
-  Bb3:      233,
-  Ab3:      208,
-  Gb3:      185,
+  A4:  440,
+  C5:  523,
+  E5:  659,
+  G5:  784,
+  C6:  1047,
+  Bb3: 233,
+  Ab3: 208,
+  Gb3: 185,
 } as const;
+
+/** Placement-sound frequency for X (halfway between D5 and Eb5). */
+const X_PLACE_HZ = 600;
 
 
 /**
@@ -129,7 +125,7 @@ export class AudioManager
    */
   playPlaceSound(mark: Player): void
   {
-    this.playTone(mark === 'X' ? NOTE.X_PLACE : NOTE.A4, 0.12, 'triangle');
+    this.playTone(mark === 'X' ? X_PLACE_HZ : NOTE.A4, 0.12, 'triangle');
   }
 
   /**
@@ -167,13 +163,4 @@ export class AudioManager
     setTimeout(() => this.playTone(NOTE.A4, 0.15, 'square', 0.08), 200);
   }
 
-  /**
-   * Resets the AudioContext reference to null.
-   * Used by tests to inject a tracking mock between test cases.
-   * @internal
-   */
-  _resetAudioCtx(): void
-  {
-    this.audioCtx = null;
-  }
 }
